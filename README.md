@@ -1,3 +1,1 @@
-# Cangjie-vscode-dap-plugin
-
-null
+#Cangjie-vscode-dap-plugin
