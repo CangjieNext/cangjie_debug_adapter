@@ -1,0 +1,9 @@
+/.vscode/
+/.idea/
+/build/build/
+/build/logs/
+/output/
+/cmake-build-debug/
+/cmake-build-release/
+# BitFun snapshot data - auto managed
+.bitfun/
