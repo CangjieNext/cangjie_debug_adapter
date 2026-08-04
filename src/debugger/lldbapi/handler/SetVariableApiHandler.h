@@ -23,7 +23,7 @@ public:
 protected:
     using RequestApiHandlerBase::GenerateSuccessResponse;
     UniqueResponsePtr GenerateSuccessResponse(int64_t parentIndex, lldb::SBValue &sbValue);
-    Dap::ValueParser GetExprValueParser(lldb::SBValue &value, std::string &expression) const;
+    Dap::ValueParser GetExprValueParser(lldb::SBValue &value, std::string &expression, int64_t containerRef) const;
     std::string FormatCharValueExpr(const std::string &expression, bool isUnsigned) const;
     bool IsSimpleLiteral(const std::string &expression, lldb::BasicType basicType) const;
 

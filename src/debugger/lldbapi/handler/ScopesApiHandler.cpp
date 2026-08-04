@@ -27,7 +27,19 @@ UniqueResponsePtr ScopesApiHandler::HandleRequest(UniqueRequestPtr request)
         return debugger->CompleteFailureResponse(std::make_unique<ScopesResponse>(), error, currentRequest->seq);
     }
     auto process = debugger->GetSbTarget().GetProcess();
-    process.SetSelectedThread(curFrame.GetThread());
+    bool cjThreadSelected = false;
+    if (debugger->GetOption().OhosCangjieDebug()) {
+        ContainerInfo frameInfo = debugger->GetContainerManager().GetContainerInfo(curFrameId);
+        if (frameInfo.threadId != -1 && debugger->GetCjThreadIndexById(frameInfo.threadId).value()) {
+            SBCJThread cjThread = process.GetCJThreadAtIndex(debugger->GetCjThreadIndexById(frameInfo.threadId).value());
+            if (cjThread.IsValid() && process.SetSelectedCJThread(cjThread)) {
+                cjThreadSelected = true;
+            }
+        }
+    }
+    if (!cjThreadSelected) {
+        process.SetSelectedThread(curFrame.GetThread());
+    }
     process.GetSelectedThread().SetSelectedFrame(curFrame.GetFrameID());
     std::vector<Scope> scopes;
     if (debugger->GetDebuggeeLanguageType() != DebuggeeLanguageType::CANGJIE) {

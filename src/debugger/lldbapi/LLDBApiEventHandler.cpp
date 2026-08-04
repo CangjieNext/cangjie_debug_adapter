@@ -36,9 +36,13 @@ bool LLDBApiEventHandler::StartListener()
         return false;
     }
     isListening = true;
-    std::thread listenEventThread([this] { ListenEvent(); });
-    listenEventThread.detach();
+    listenEventThread = std::thread([this] { ListenEvent(); });
     return true;
+}
+
+LLDBApiEventHandler::~LLDBApiEventHandler()
+{
+    StopListener();
 }
 
 bool LLDBApiEventHandler::InitSBListener(lldb::SBListener &listener)
@@ -100,6 +104,9 @@ void LLDBApiEventHandler::StopListener()
         LOG_INFO("Event listener is not running now.");
     }
     isListening = false;
+    if (listenEventThread.joinable() && listenEventThread.get_id() != std::this_thread::get_id()) {
+        listenEventThread.join();
+    }
 }
 
 void LLDBApiEventHandler::HandleProcessEvent(const lldb::SBEvent &sbEvent)
@@ -239,8 +246,7 @@ void LLDBApiEventHandler::HandleStoppedEvent(const lldb::SBEvent &sbEvent)
         apiDebugger->GetSbTarget().BreakpointDelete(apiDebugger->GetEntryBreakpointID());
         apiDebugger->SetEntryBreakpointID(-1);
     }
-    std::thread t = std::thread(std::mem_fn(&LLDBApiEventHandler::TimeTravelPreProcess), this);
-    t.detach();
+    TimeTravelPreProcess();
 }
 
 void LLDBApiEventHandler::GetStoppedReason(const SBEvent &sbEvent, SBThread &thread)

@@ -8,7 +8,9 @@
 #define DAP_LLDBAPI_EVENT_HANDLER_H
 
 #include <iostream>
+#include <atomic>
 #include <map>
+#include <thread>
 #include "LLDB.h"
 #include "Debugger.h"
 #include "LLDBApiDebugger.h"
@@ -18,7 +20,7 @@ namespace Dap {
 class LLDBApiEventHandler {
 public:
     explicit LLDBApiEventHandler(std::shared_ptr<LLDBApiDebugger> debugger) : apiDebugger(debugger) {};
-    ~LLDBApiEventHandler() = default;
+    ~LLDBApiEventHandler();
 
     bool StartListener();
     void StopListener();
@@ -83,7 +85,8 @@ private:
     std::string GetModuleInfoStr(Dap::Protocol::Module &module);
 
     Dap::Protocol::StoppedEvent currentStoppedEvent;
-    bool isListening = false;
+    std::atomic<bool> isListening = false;
+    std::thread listenEventThread;
     int preStoppedThreadIndex = -1;
     std::string errorMsg;
     std::shared_ptr<LLDBApiDebugger> apiDebugger = nullptr;

@@ -25,6 +25,28 @@ UniqueResponsePtr SetVariableApiHandler::HandleRequest(UniqueRequestPtr request)
 
     int64_t containerRef = reqPtr->arguments.variablesReference;
     ContainerInfo containerInfo = debugger->GetContainerManager().GetContainerInfo(containerRef);
+    if (containerInfo.containerType != DapContainer::VALUE) {
+        SBFrame liveFrame = debugger->GetLiveFrame(containerRef);
+        if (debugger->GetOption().OhosCangjieDebug() &&containerInfo.threadId != -1 &&
+            debugger->GetCjThreadIndexById(containerInfo.threadId).has_value()) {
+            SBProcess sbProcess = debugger->GetSbTarget().GetProcess();
+            SBCJThread sbCjThread = sbProcess.GetCJThreadAtIndex(
+                debugger->GetCjThreadIndexById(containerInfo.threadId).value());
+            SBThread hostThread = sbProcess.GetThreadByID(sbCjThread.GetHostThreadID());
+            if (!hostThread.IsValid()) {
+                hostThread = sbProcess.GetSelectedThread();
+            }
+            SBFrame hostFrame = hostThread.GetFrameAtIndex(containerInfo.frameIndex);
+            if (hostFrame.IsValid()) {
+                liveFrame = hostFrame;
+            }
+        }
+        if (liveFrame.IsValid()) {
+            containerInfo.container = liveFrame;
+            debugger->GetContainerManager().SetContainerInfo(containerRef, containerInfo);
+        }
+    }
+
     SBValue value = debugger->GetContainerManager().FindVarSBValue(reqPtr->arguments.name, containerRef,
         debugger->GetSbDebugger());
     if (!value.IsValid()) {
@@ -36,7 +58,7 @@ UniqueResponsePtr SetVariableApiHandler::HandleRequest(UniqueRequestPtr request)
     string exprValue = expression;
     BasicType basicType = value.GetType().GetBasicType();
     if (IsSimpleLiteral(expression, basicType)) {
-        ValueParser valueParser = GetExprValueParser(value, expression);
+        ValueParser valueParser = GetExprValueParser(value, expression, containerRef);
         if (valueParser.GetValue(exprValue) && exprValue != "unknown") {
             SBError sbError;
             bool ret = value.SetValueFromCString(exprValue.c_str(), sbError);
@@ -55,7 +77,7 @@ UniqueResponsePtr SetVariableApiHandler::HandleRequest(UniqueRequestPtr request)
     }
 }
 
-ValueParser SetVariableApiHandler::GetExprValueParser(SBValue &value, string &expression) const
+ValueParser SetVariableApiHandler::GetExprValueParser(SBValue &value, string &expression, int64_t containerRef) const
 {
     expression = CommonUtils::TrimString(expression, " ", TrimType::BOTH);
     string varType = value.GetType().GetName();
@@ -72,6 +94,22 @@ ValueParser SetVariableApiHandler::GetExprValueParser(SBValue &value, string &ex
         expression = FormatCharValueExpr(expression, basicType == lldb::eBasicTypeUnsignedChar);
     }
     SBFrame frame = value.GetFrame();
+    if (debugger->GetOption().OhosCangjieDebug()) {
+        ContainerInfo info = debugger->GetContainerManager().GetContainerInfo(containerRef);
+        if (info.threadId != -1 && debugger->GetCjThreadIndexById(info.threadId).has_value()) {
+            SBProcess sbProcess = debugger->GetSbTarget().GetProcess();
+            SBCJThread sbCjThread = sbProcess.GetCJThreadAtIndex(
+                debugger->GetCjThreadIndexById(info.threadId).value());
+            SBThread hostThread = sbProcess.GetThreadByID(sbCjThread.GetHostThreadID());
+            if (!hostThread.IsValid()) {
+                hostThread = sbProcess.GetSelectedThread();
+            }
+            SBFrame hostFrame = hostThread.GetFrameAtIndex(info.frameIndex);
+            if (hostFrame.IsValid()) {
+                frame = hostFrame;
+            }
+        }
+    }
     debugger->UpdateCategory(true);
     SBValue sbValue = debugger->FindExprValue(frame, expression);
     debugger->UpdateCategory();
