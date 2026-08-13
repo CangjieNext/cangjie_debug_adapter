@@ -247,6 +247,9 @@ void VariablesApiHandler::SetVariableChildInfo(SBValue &sbValue, Variable &varia
     ContainerInfo containerInfo;
     containerInfo.containerType = DapContainer::VALUE;
     containerInfo.container = sbValue;
+    ContainerInfo parentInfo = debugger->GetContainerManager().GetContainerInfo(curVariableRef);
+    containerInfo.threadId = parentInfo.threadId;
+    containerInfo.frameIndex = parentInfo.frameIndex;
     debugger->GetContainerManager().SetContainerInfo(variable.variablesReference, containerInfo);
     debugger->GetContainerManager().SetExprOfVarRef(variable.variablesReference, evaluateName);
 }

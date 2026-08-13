@@ -25,6 +25,10 @@ IS_LINUX = platform.system() == 'Linux'
 IS_DARWIN = platform.system() == 'Darwin'
 MAKE_JOBS = multiprocessing.cpu_count() + 2
 
+# Cangjie SDK path: set via --sdk-path or CANGJIE_SDK_PATH env var.
+# SDK acquisition method is TBD; user must provide the path for now.
+DEFAULT_SDK_PATH = os.environ.get('CANGJIE_SDK_PATH')
+
 BUILD_DIR = os.path.dirname(os.path.realpath(__file__))
 CMAKE_BUILD_DIR = os.path.join(BUILD_DIR, 'build')
 
@@ -32,7 +36,7 @@ HOME_DIR = os.path.dirname(BUILD_DIR)
 OPEN_SRC_DIR = os.path.join(HOME_DIR, 'open_source')
 SRC_DIR = os.path.join(HOME_DIR, 'src')
 TEST_DIR = os.path.join(HOME_DIR, 'test')
-SRC_LAUNCHER_DIR = os.path.join(SRC_DIR, 'launcher')
+
 OUTPUT_DIR = os.path.join(HOME_DIR, 'output')
 OUTPUT_BIN_DIR = os.path.join(OUTPUT_DIR, 'bin')
 OUTPUT_EXE_DIR = ''
@@ -48,76 +52,245 @@ def information():
     LOG.info('root directory = {}'.format(HOME_DIR))
     LOG.info('open_source directory = {}'.format(OPEN_SRC_DIR))
     LOG.info('src directory = {}'.format(SRC_DIR))
-    LOG.info('src launcher directory = {}'.format(SRC_LAUNCHER_DIR))
     LOG.info('test directory = {}'.format(TEST_DIR))
     LOG.info('output directory = {}'.format(OUTPUT_DIR))
     LOG.info('coverage report directory = {}'.format(UT_REPORT_DIR))
     LOG.info('build directory = {}'.format(BUILD_DIR))
     LOG.info('log directory = {}'.format(LOG_DIR))
 
+def setup_build_tools():
+    """Find cmake and build tool (ninja/mingw32-make), add to PATH if needed.
+    Searches PATH first, then common locations (DevEco Studio, etc.).
+    """
+    if not IS_WINDOWS:
+        if not shutil.which('cmake'):
+            LOG.error('cmake not found in PATH. Please install cmake and add it to PATH.')
+            sys.exit(1)
+        return
+
+    # Common cmake/ninja/clang locations on Windows
+    search_dirs = []
+    devec_home = os.environ.get('DEVECO_SDK_HOME', '')
+    if devec_home:
+        search_dirs.append(os.path.join(devec_home, 'build-tools', 'cmake', 'bin'))
+        search_dirs.append(os.path.join(devec_home, 'native', 'build-tools', 'cmake', 'bin'))
+        search_dirs.append(os.path.join(devec_home, 'native', 'llvm', 'bin'))
+        search_dirs.append(os.path.join(devec_home, 'native', 'BUILD-~1', 'cmake', 'bin'))
+    search_dirs.append(r'C:\Program Files\Huawei\DevEco Studio\sdk\default\openharmony\native\build-tools\cmake\bin')
+    search_dirs.append(r'C:\Program Files\Huawei\DevEco Studio\sdk\default\openharmony\native\llvm\bin')
+
+    found_dirs = set()
+    for tool in ['cmake', 'ninja', 'mingw32-make', 'clang', 'clang++']:
+        exe_names = [tool, tool + '.exe'] if IS_WINDOWS else [tool]
+        if any(shutil.which(n) for n in exe_names):
+            continue
+        for d in search_dirs:
+            tool_found = False
+            for exe in exe_names:
+                if os.path.isfile(os.path.join(d, exe)):
+                    found_dirs.add(d)
+                    tool_found = True
+                    break
+            if tool_found:
+                break
+
+    for d in found_dirs:
+        os.environ['PATH'] = d + os.pathsep + os.environ['PATH']
+        LOG.info('[DAP SERVER] added build tools to PATH: {}'.format(d))
+
+    if not shutil.which('cmake') and not shutil.which('cmake.exe'):
+        LOG.error('cmake not found. Please add it to PATH, e.g.:')
+        LOG.error('  $env:Path = "C:\\Program Files\\Huawei\\DevEco Studio\\sdk\\default\\openharmony\\native\\build-tools\\cmake\\bin;" + $env:Path')
+        sys.exit(1)
+
+
+def check_compiler(gxx_type):
+    """Check that the required compiler is available for the gxx_type."""
+    if gxx_type == 'win_mingw64':
+        if not (shutil.which('g++') or shutil.which('g++.exe')):
+            LOG.error('[DAP SERVER] g++ not found. win_mingw64 requires MinGW g++.')
+            LOG.error('Please install MinGW.')
+            sys.exit(1)
+    elif gxx_type == 'win_ninja':
+        if not (shutil.which('g++') or shutil.which('g++.exe')):
+            LOG.error('[DAP SERVER] g++ not found. win_ninja requires g++.')
+            LOG.error('Please install MinGW.')
+            sys.exit(1)
+
+def get_liblldb_path(sdk_path):
+    """Resolve liblldb dynamic library path from Cangjie SDK path.
+
+    Windows : <sdk>/tools/bin/liblldb.dll
+    Linux   : <sdk>/third_party/llvm/lib/liblldb.so
+    macOS   : <sdk>/third_party/llvm/lib/liblldb.dylib
+    """
+    if not sdk_path:
+        LOG.error('Cangjie SDK path is required. Please pass --sdk-path or set CANGJIE_SDK_PATH env var.')
+        sys.exit(1)
+    if IS_WINDOWS:
+        liblldb = os.path.join(sdk_path, 'tools', 'bin', 'liblldb.dll')
+    elif IS_DARWIN:
+        liblldb = os.path.join(sdk_path, 'third_party', 'llvm', 'lib', 'liblldb.dylib')
+    else:
+        liblldb = os.path.join(sdk_path, 'third_party', 'llvm', 'lib', 'liblldb.so')
+    if not os.path.exists(liblldb):
+        LOG.error('liblldb not found at: {}'.format(liblldb))
+        sys.exit(1)
+    return liblldb.replace('\\', '/')
+
 def log_output(output):
     """log command output"""
     while True:
         line = output.stdout.readline()
         if not line:
-            ret = output.poll()
-            if ret and ret != 0:
+            ret = output.wait()
+            if ret != 0:
                 LOG.error('build error: %d!\n', ret)
                 sys.exit(1)
             break
         LOG.info(line.decode('UTF-8').rstrip())
 
+def detect_generator():
+    """Detect the available CMake generator on Windows.
+    Prefers Ninja (DevEco Studio, etc.) and falls back to MinGW Makefiles.
+    """
+    if IS_WINDOWS:
+        for name in ['ninja', 'ninja.exe']:
+            if shutil.which(name):
+                return 'Ninja'
+        for name in ['mingw32-make', 'mingw32-make.exe']:
+            if shutil.which(name):
+                return 'MinGW Makefiles'
+        return 'Ninja'
+    return 'Ninja'
+
+
+def detect_compiler():
+    """Detect available C++ compiler on Windows. Returns 'gpp' or 'clang' or None."""
+    for name in ['g++.exe', 'g++']:
+        if shutil.which(name):
+            return 'gpp'
+    for name in ['clang++.exe', 'clang++']:
+        if shutil.which(name):
+            return 'clang'
+    return None
+
+
+def get_windows_cmake_flags(sdk_path, compiler):
+    """Get extra cmake flags for Windows based on compiler type.
+    When using clang (DevEco Studio, etc.), use CROSS_WINDOWS mode with
+    libc++ and lld, linking against the SDK's mingw runtime libraries.
+    """
+    if compiler != 'clang':
+        return []
+    mingw_lib = os.path.join(sdk_path, 'third_party', 'mingw', 'lib').replace('\\', '/')
+    return [
+        '-DCROSS_WINDOWS=ON',
+        '-DCMAKE_CXX_FLAGS=-stdlib=libc++',
+        '-DCMAKE_EXE_LINKER_FLAGS=-fuse-ld=lld -L{} -LC:/Windows/System32 -lunwind -lpsapi'.format(mingw_lib),
+    ]
+
+
+def get_build_config(gxx_type, sdk_path):
+    """Get generator, compiler_type and extra cmake flags for a gxx_type."""
+    if gxx_type == 'win_mingw64':
+        gpp = shutil.which('g++.exe') or shutil.which('g++')
+        gcc = shutil.which('gcc.exe') or shutil.which('gcc')
+        if not gcc or not gpp:
+            LOG.error('[DAP SERVER] gcc and g++ are required for win_mingw64.')
+            sys.exit(1)
+        return 'MinGW Makefiles', 'MinGW', [
+            '-DCMAKE_C_COMPILER={}'.format(gcc.replace('\\', '/')),
+            '-DCMAKE_CXX_COMPILER={}'.format(gpp.replace('\\', '/')),
+        ]
+    elif gxx_type == 'win_ninja':
+        gpp = shutil.which('g++.exe') or shutil.which('g++')
+        gcc = shutil.which('gcc.exe') or shutil.which('gcc')
+        if not gcc or not gpp:
+            LOG.error('[DAP SERVER] gcc and g++ are required for win_ninja.')
+            sys.exit(1)
+        return 'Ninja', 'MinGW', [
+            '-DCMAKE_C_COMPILER={}'.format(gcc.replace('\\', '/')),
+            '-DCMAKE_CXX_COMPILER={}'.format(gpp.replace('\\', '/')),
+        ]
+    elif gxx_type == 'linux_aarch64':
+        return 'Ninja', 'Ninja', ['-DCROSS_NAME=aarch64-linux-gnu', '-DCROSS_SET=Yes']
+    elif gxx_type in ('darwin_x86_64', 'darwin_aarch64'):
+        return 'Ninja', 'Ninja', ['-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64']
+    else:
+        return 'Ninja', 'Ninja', []
+
+
+def reset_incompatible_cmake_cache(build_dir, compiler_path):
+    """Discard CMake's compiler cache when switching toolchains."""
+    cache_file = os.path.join(build_dir, 'CMakeCache.txt')
+    if not os.path.isfile(cache_file):
+        return
+    with open(cache_file, 'r') as cache:
+        cache_content = cache.read().lower().replace('\\', '/')
+    expected_compiler = os.path.normcase(os.path.abspath(compiler_path)).replace('\\', '/')
+    if expected_compiler in cache_content:
+        return
+    LOG.info('[DAP SERVER] clearing incompatible CMake compiler cache in {}'.format(build_dir))
+    os.remove(cache_file)
+    cmake_files_dir = os.path.join(build_dir, 'CMakeFiles')
+    if os.path.isdir(cmake_files_dir):
+        shutil.rmtree(cmake_files_dir)
+
+
 def build(args):
     """dap server build"""
     LOG.info('[DAP SERVER] begin build...\n')
-    generator = 'MinGW Makefiles' if IS_WINDOWS else 'Ninja'
-    compiler_type = 'MinGW' if IS_WINDOWS else 'Ninja'
+    setup_build_tools()
+    liblldb_path = get_liblldb_path(args.sdk_path)
     LOG.info('[DAP SERVER] gxx_types = {}\n'.format(args.gxx_types))
     for i, gxx_type in enumerate(args.gxx_types):
-        LOG.info('[DAP SERVER] gxx_type = {}\n'.format(gxx_type))
+        check_compiler(gxx_type)
+        generator, compiler_type, extra_flags = get_build_config(gxx_type, args.sdk_path)
+        LOG.info('[DAP SERVER] gxx_type = {}'.format(gxx_type))
+        LOG.info('[DAP SERVER] generator = {}'.format(generator))
+        LOG.info('[DAP SERVER] compiler_type = {}'.format(compiler_type))
         OUTPUT_EXE_DIR = os.path.join(OUTPUT_BIN_DIR, gxx_type)
         UT_EXE_PATH = os.path.join(OUTPUT_EXE_DIR, UT_EXE_NAME)
         LOG.info('[DAP SERVER] unit test executable file path = {}'.format(UT_EXE_PATH))
         build_dir = os.path.join(CMAKE_BUILD_DIR, gxx_type)
         if not os.path.exists(build_dir):
-            os.makedirs(build_dir) 
-        build_cmds = ['cmake', HOME_DIR, '-G', generator, '-DCMAKE_BUILD_TYPE={}'.format(args.build_type.value), '-DCOMPILER_TYPE={}'.format(compiler_type)]
+            os.makedirs(build_dir)
+        if gxx_type in ('win_mingw64', 'win_ninja'):
+            reset_incompatible_cmake_cache(build_dir, shutil.which('g++.exe') or shutil.which('g++'))
+        build_cmds = ['cmake', HOME_DIR, '-G', generator, '-DCMAKE_BUILD_TYPE={}'.format(args.build_type.value), '-DCOMPILER_TYPE={}'.format(compiler_type), '-DLIBLLDB_PATH={}'.format(liblldb_path), '-DWIN_OUTPUT_NAME={}'.format(gxx_type)]
+        build_cmds.extend(extra_flags)
         if args.unit_test_enable == 1:
             build_cmds.append('-DENABLE_COVERAGE=ON')
-        # cross toolchain does not need to be set on windows or linux x86_64
-        # aarch64-linux-gnu
-        if gxx_type == 'linux_aarch64':
-            build_cmds.append('-DCROSS_NAME=aarch64-linux-gnu')
-            build_cmds.append('-DCROSS_SET=Yes')
         output = subprocess.Popen(build_cmds, cwd = build_dir, stdout = subprocess.PIPE)
         log_output(output)
 
         build_cmds = ['cmake', '--build', '.', '-j', str(MAKE_JOBS)]
+        if args.target:
+            build_cmds.extend(['--target'] + args.target)
         output = subprocess.Popen(build_cmds, cwd = build_dir, stdout = subprocess.PIPE)
         log_output(output)
         LOG.info('[DAP SERVER] end build.\n')
 
-        # copy dap_server and launcher with OS suffix
+        # copy dap_server with OS suffix
         if args.copy_target_enable == 1:
             copy_to_target(OUTPUT_EXE_DIR, gxx_type)
 
         # enable unit test
         LOG.info('[DAP SERVER] gxx_type = {},  unit test enable = {}'.format(gxx_type, args.unit_test_enable))
         if args.unit_test_enable == 1:
-            # unit tests can be driven by win_mingw64 and linux_x86_64
-            if gxx_type == 'win_mingw64' or gxx_type == 'linux_x86_64' or gxx_type == 'dawin_x86_64':
+            if gxx_type in ('win_mingw64', 'win_ninja', 'linux_x86_64', 'darwin_x86_64', 'darwin_aarch64'):
                 test(args, gxx_type, OUTPUT_EXE_DIR, UT_EXE_PATH)
                 coverage(gxx_type, True)
                 coverage(gxx_type, False)
             else:
-                LOG.info('[DAP SERVER] gxx_type = {}, unit tests can be driven only by win_mingw64 and linux_x86_64'.format(gxx_type))
+                LOG.info('[DAP SERVER] gxx_type = {}, unit tests can be driven only on native platforms'.format(gxx_type))
 		
         if args.unit_test_enable == 2:
-            # smoke tests can be driven by win_mingw64 and linux_x86_64
-            if gxx_type == 'win_mingw64' or gxx_type == 'linux_x86_64' or gxx_type == 'dawin_x86_64':
+            if gxx_type in ('win_mingw64', 'win_ninja', 'linux_x86_64', 'darwin_x86_64', 'darwin_aarch64'):
                 smoketest(args, gxx_type, OUTPUT_EXE_DIR, UT_EXE_PATH)
             else:
-                LOG.info('[DAP SERVER] gxx_type = {}, smoke tests can be driven only by win_mingw64 and linux_x86_64'.format(gxx_type))
+                LOG.info('[DAP SERVER] gxx_type = {}, smoke tests can be driven only on native platforms'.format(gxx_type))
 
 def test(args, gxx_type, dir, path):
     LOG.info('[DAP SERVER] unit test file dir = {}, unit test file path = {}'.format(dir, path))
@@ -159,17 +332,15 @@ def coverage(gxx_type, html_enable=True):
             shutil.rmtree(report_dir, ignore_errors = True)
         os.makedirs(report_dir)
         report_path = os.path.join(report_dir, 'index.html')
-        gcovr_cmds = ['gcovr', '-r', '.', 
-                    '-e', OPEN_SRC_DIR.replace('\\', '/'), 
+        gcovr_cmds = ['gcovr', '-r', '.',
+                    '-e', OPEN_SRC_DIR.replace('\\', '/'),
                     '-e', TEST_DIR.replace('\\', '/'),
-                    '-e', SRC_LAUNCHER_DIR.replace('\\', '/'),
                     '--html', '--html-details',
                     '-o', report_path.replace('\\', '/')]
     else:
-        gcovr_cmds = ['gcovr', '-r', '.', 
-                      '-e', OPEN_SRC_DIR.replace('\\', '/'), 
-                      '-e', TEST_DIR.replace('\\', '/'),
-                      '-e', SRC_LAUNCHER_DIR.replace('\\', '/')]
+        gcovr_cmds = ['gcovr', '-r', '.',
+                      '-e', OPEN_SRC_DIR.replace('\\', '/'),
+                      '-e', TEST_DIR.replace('\\', '/')]
     output = subprocess.Popen(gcovr_cmds, cwd = HOME_DIR, stdout = subprocess.PIPE)
     log_output(output)
     LOG.info('[DAP SERVER] {} - coverage report(html = {}) is generated.\n'.format(gxx_type, html_enable))
@@ -227,7 +398,7 @@ class BuildType(Enum):
             return s
 
 def copy_to_target(outputDir, gxx_type):
-    srcFiles = ['dap_server', 'launcher']
+    srcFiles = ['dap_server']
     suffix = '_{}'.format(gxx_type)
     for file in srcFiles:
         if IS_WINDOWS:
@@ -236,6 +407,9 @@ def copy_to_target(outputDir, gxx_type):
         else:
             srcName = os.path.join(outputDir, file)
             dstName = os.path.join(outputDir, '{}{}'.format(file, suffix))
+        if not os.path.exists(srcName):
+            LOG.warning('[DAP SERVER] {} not found, skip copy'.format(srcName))
+            continue
         copyfile(srcName, dstName)
         os.chmod(dstName, stat.S_IRWXU + stat.S_IRGRP + stat.S_IXGRP + stat.S_IROTH + stat.S_IXOTH)
 
@@ -254,11 +428,14 @@ def main():
     gxx_choices = []
     gxx_default = []
     if IS_WINDOWS:
-        gxx_choices = ['win_mingw64']
-        gxx_default = ['win_mingw64']
+        gxx_choices = ['win_mingw64', 'win_ninja']
+        gxx_default = ['win_mingw64', 'win_ninja']
     elif IS_DARWIN:
-        gxx_choices = ['darwin_x86_64']
-        gxx_default = ['darwin_x86_64']   
+        gxx_choices = ['darwin_x86_64', 'darwin_aarch64']
+        if platform.machine() == 'arm64':
+            gxx_default = ['darwin_aarch64']
+        else:
+            gxx_default = ['darwin_x86_64']
     else:
         gxx_choices = ['linux_x86_64', 'linux_aarch64']
         gxx_default = ['linux_x86_64']   
@@ -271,6 +448,11 @@ def main():
                               choices = gxx_choices, 
                               default = gxx_default,
                               help = 'gxx toochains name for build.')
+    parser_build.add_argument('--sdk-path',
+                              dest = 'sdk_path',
+                              type = str,
+                              default = DEFAULT_SDK_PATH,
+                              help = 'Cangjie SDK path (required: set CANGJIE_SDK_PATH env var or pass --sdk-path).')
     parser_build.add_argument('-u',
                               '--unit-test-enable',
                               dest = 'unit_test_enable',
@@ -282,7 +464,13 @@ def main():
                               dest = 'copy_target_enable',
                               type = int,
                               default = 1,
-                              help = '0-disable, 1-enable, it will copy targets with OS suffix after targets are build over.')                            
+                              help = '0-disable, 1-enable, it will copy targets with OS suffix after targets are build over.')
+    parser_build.add_argument('--target',
+                              dest = 'target',
+                              type = str,
+                              nargs = '+',
+                              default = None,
+                              help = 'build specific cmake target(s) only, e.g. --target dap_server. Default: all targets.')
     parser_build.set_defaults(func = build)
 
     parser_clean = subparsers.add_parser('clean', help='clean build')

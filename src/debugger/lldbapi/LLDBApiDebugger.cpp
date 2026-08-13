@@ -321,6 +321,9 @@ void LLDBApiDebugger::Start()
 
 void LLDBApiDebugger::Stop()
 {
+    if (eventHandler != nullptr) {
+        eventHandler->StopListener();
+    }
 }
 
 UniqueResponsePtr LLDBApiDebugger::Initialize(UniqueRequestPtr request)
@@ -432,6 +435,8 @@ UniqueResponsePtr LLDBApiDebugger::Disconnect(UniqueRequestPtr request)
         sbDebugger.GetSelectedPlatform().DisconnectRemote();
         LOG_INFO("Disconnect from ", option.remotePlatform);
     }
+    Stop();
+    eventHandler.reset();
     lldb::SBDebugger::Destroy(sbDebugger);
     this->OnDebuggerExit(0);
     return CompleteSuccessResponse(std::make_unique<DisconnectResponse>(), request->seq);

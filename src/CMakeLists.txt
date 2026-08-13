@@ -36,7 +36,11 @@ set(PROTOCOL_INCLUDE_DIR ./protocol/)
 # set directories of open_source include & library files
 message(STATUS "${PROJECT_NAME} compiler type=${COMPILER_TYPE}, cross_name=${CROSS_NAME}, cross_set=${CROSS_SET}.")
 if  (COMPILER_TYPE MATCHES "MinGW" OR CMAKE_SYSTEM_NAME MATCHES "Windows")
-    set(LIBUV_LIB_DIR ${OPENSRC_DIR}/libuv/lib/mingw/)
+    if (CROSS_WINDOWS MATCHES "ON")
+        set(LIBUV_LIB_DIR ${OPENSRC_DIR}/libuv/lib/ninja/)
+    else()
+        set(LIBUV_LIB_DIR ${OPENSRC_DIR}/libuv/lib/mingw/)
+    endif()
     add_definitions(-D_WIN32) # define _WIN32
 elseif (COMPILER_TYPE MATCHES "Ninja")
     if (CMAKE_SYSTEM_NAME MATCHES "Linux") 
@@ -100,9 +104,10 @@ add_library(${PROJECT_LIB_NAME} ${CORE} ${CHANNEL} ${LINUXPLATFORM} ${WINDOWSPLA
         ${COMMON} ${LLDB_API} ${LLDB_API_HANDLER})
 if (COMPILER_TYPE MATCHES "MinGW")
     target_link_libraries(${PROJECT_LIB_NAME}
-            uv
-            dbghelp
-            UserEnv
+             uv
+             dbghelp
+             Psapi
+             UserEnv
             ws2_32
             Iphlpapi
             Shlwapi)
