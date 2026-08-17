@@ -13,9 +13,14 @@ import multiprocessing
 import os
 import platform
 import shutil
+import ssl
 import subprocess
 import sys
 import stat
+import tarfile
+import urllib.request
+import urllib.parse
+import zipfile
 from enum import Enum
 from shutil import copyfile
 from logging.handlers import TimedRotatingFileHandler
@@ -25,12 +30,19 @@ IS_LINUX = platform.system() == 'Linux'
 IS_DARWIN = platform.system() == 'Darwin'
 MAKE_JOBS = multiprocessing.cpu_count() + 2
 
-# Cangjie SDK path: set via --sdk-path or CANGJIE_SDK_PATH env var.
-# SDK acquisition method is TBD; user must provide the path for now.
-DEFAULT_SDK_PATH = os.environ.get('CANGJIE_SDK_PATH')
+# An explicit SDK path takes precedence over downloading a DailyMain SDK.
+DEFAULT_SDK_PATH = os.environ.get('CANGJIE_SDK_PATH') or os.environ.get('CANGJIE_HOME')
+DEFAULT_SDK_SOURCE = os.environ.get('CANGJIE_SDK_SOURCE', 'auto')
+DEFAULT_SDK_URL = os.environ.get('CANGJIE_SDK_URL')
+DEFAULT_SDK_BASE_URL = os.environ.get(
+    'CANGJIE_SDK_BASE_URL',
+    'https://cangjie103.obs.cn-north-4.myhuaweicloud.com/CangjieDaily/Cangjie/DailyMain'
+)
+DEFAULT_SDK_VERSION = os.environ.get('CANGJIE_SDK_VERSION', '1.0.0')
 
 BUILD_DIR = os.path.dirname(os.path.realpath(__file__))
 CMAKE_BUILD_DIR = os.path.join(BUILD_DIR, 'build')
+DEFAULT_SDK_CACHE_DIR = os.environ.get('CANGJIE_SDK_CACHE_DIR', os.path.join(BUILD_DIR, 'sdk'))
 
 HOME_DIR = os.path.dirname(BUILD_DIR)
 OPEN_SRC_DIR = os.path.join(HOME_DIR, 'open_source')
@@ -128,15 +140,165 @@ def get_liblldb_path(sdk_path):
         LOG.error('Cangjie SDK path is required. Please pass --sdk-path or set CANGJIE_SDK_PATH env var.')
         sys.exit(1)
     if IS_WINDOWS:
-        liblldb = os.path.join(sdk_path, 'tools', 'bin', 'liblldb.dll')
+        relative_path = os.path.join('tools', 'bin', 'liblldb.dll')
     elif IS_DARWIN:
-        liblldb = os.path.join(sdk_path, 'third_party', 'llvm', 'lib', 'liblldb.dylib')
+        relative_path = os.path.join('third_party', 'llvm', 'lib', 'liblldb.dylib')
     else:
-        liblldb = os.path.join(sdk_path, 'third_party', 'llvm', 'lib', 'liblldb.so')
+        relative_path = os.path.join('third_party', 'llvm', 'lib', 'liblldb.so')
+    liblldb = os.path.join(sdk_path, relative_path)
     if not os.path.exists(liblldb):
         LOG.error('liblldb not found at: {}'.format(liblldb))
         sys.exit(1)
     return liblldb.replace('\\', '/')
+
+
+def get_sdk_archive(gxx_type, version):
+    """Return the DailyMain SDK platform name and archive name for a target."""
+    platforms = {
+        'win_mingw64': ('windows-x64', 'zip'),
+        'win_ninja': ('windows-x64', 'zip'),
+        'linux_x86_64': ('linux-x64', 'tar.gz'),
+        'linux_aarch64': ('linux-aarch64', 'tar.gz'),
+        'darwin_x86_64': ('mac-x64', 'tar.gz'),
+        'darwin_aarch64': ('mac-aarch64', 'tar.gz'),
+    }
+    if gxx_type not in platforms:
+        raise RuntimeError('Unsupported SDK target: {}'.format(gxx_type))
+    platform_name, extension = platforms[gxx_type]
+    archive_name = 'cangjie-sdk-{}-{}.{}'.format(platform_name, version, extension)
+    return platform_name, archive_name
+
+
+def download_file(url, target_path, insecure=False):
+    """Download an SDK archive atomically."""
+    LOG.info('[DAP SERVER] downloading Cangjie SDK: %s', url)
+    os.makedirs(os.path.dirname(target_path), exist_ok=True)
+    temporary_path = target_path + '.part'
+    if os.path.exists(temporary_path):
+        os.remove(temporary_path)
+    request = urllib.request.Request(url, headers={'User-Agent': 'Cangjie-DAP-Build'})
+    context = ssl._create_unverified_context() if insecure else None
+    try:
+        with urllib.request.urlopen(request, timeout=120, context=context) as response:
+            with open(temporary_path, 'wb') as output:
+                shutil.copyfileobj(response, output)
+        os.replace(temporary_path, target_path)
+    finally:
+        if os.path.exists(temporary_path):
+            os.remove(temporary_path)
+
+
+def validate_archive_member(destination, member_name):
+    """Reject archive entries which escape the extraction directory."""
+    destination = os.path.realpath(destination)
+    target = os.path.realpath(os.path.join(destination, member_name))
+    if target != destination and not target.startswith(destination + os.sep):
+        raise RuntimeError('Unsafe path in SDK archive: {}'.format(member_name))
+
+
+def extract_sdk_archive(archive_path, destination):
+    """Extract a zip or gzip-compressed tar SDK archive safely."""
+    if archive_path.endswith('.zip'):
+        with zipfile.ZipFile(archive_path) as archive:
+            for member in archive.namelist():
+                validate_archive_member(destination, member)
+            archive.extractall(destination)
+        return
+    with tarfile.open(archive_path, 'r:gz') as archive:
+        for member in archive.getmembers():
+            validate_archive_member(destination, member.name)
+        archive.extractall(destination)
+
+
+def get_liblldb_relative_path():
+    if IS_WINDOWS:
+        return os.path.join('tools', 'bin', 'liblldb.dll')
+    if IS_DARWIN:
+        return os.path.join('third_party', 'llvm', 'lib', 'liblldb.dylib')
+    return os.path.join('third_party', 'llvm', 'lib', 'liblldb.so')
+
+
+def find_sdk_root(destination):
+    """Find an extracted SDK root by looking for its platform liblldb."""
+    relative_liblldb = get_liblldb_relative_path()
+    candidates = [destination, os.path.join(destination, 'cangjie')]
+    if os.path.isdir(destination):
+        candidates.extend(
+            os.path.join(destination, name)
+            for name in os.listdir(destination)
+            if os.path.isdir(os.path.join(destination, name))
+        )
+    for candidate in candidates:
+        if os.path.isfile(os.path.join(candidate, relative_liblldb)):
+            return candidate
+    return None
+
+
+def download_sdk(gxx_type, base_url, version, cache_dir, insecure=False, sdk_url=None):
+    """Download and extract the DailyMain SDK for one DAP target."""
+    platform_name, archive_name = get_sdk_archive(gxx_type, version)
+    if sdk_url:
+        supplied_name = os.path.basename(urllib.parse.urlparse(sdk_url).path)
+        if supplied_name:
+            archive_name = supplied_name
+    archive_path = os.path.join(cache_dir, 'downloads', archive_name)
+    extract_dir = os.path.join(cache_dir, '{}-{}'.format(platform_name, version))
+    sdk_path = find_sdk_root(extract_dir)
+    if sdk_path:
+        LOG.info('[DAP SERVER] reusing cached Cangjie SDK: %s', sdk_path)
+        return sdk_path
+
+    if not os.path.isfile(archive_path):
+        url = sdk_url or '{}/{}'.format(base_url.rstrip('/'), archive_name)
+        download_file(url, archive_path, insecure)
+    else:
+        LOG.info('[DAP SERVER] reusing downloaded SDK archive: %s', archive_path)
+
+    if os.path.isdir(extract_dir):
+        shutil.rmtree(extract_dir)
+    os.makedirs(extract_dir)
+    LOG.info('[DAP SERVER] extracting Cangjie SDK to: %s', extract_dir)
+    extract_sdk_archive(archive_path, extract_dir)
+    sdk_path = find_sdk_root(extract_dir)
+    if not sdk_path:
+        raise RuntimeError(
+            'Downloaded SDK does not contain {}: {}'.format(
+                get_liblldb_relative_path(), archive_path
+            )
+        )
+    return sdk_path
+
+
+def resolve_sdk_path(args, gxx_type):
+    """Resolve the SDK according to --sdk-source."""
+    if args.sdk_source not in ('auto', 'path', 'download'):
+        LOG.error('[DAP SERVER] unsupported SDK source: {}'.format(args.sdk_source))
+        sys.exit(1)
+    if args.sdk_source == 'path' and not args.sdk_path:
+        LOG.error('[DAP SERVER] --sdk-source path requires --sdk-path or CANGJIE_SDK_PATH.')
+        sys.exit(1)
+    if args.sdk_source in ('auto', 'path') and args.sdk_path:
+        if os.path.isfile(os.path.join(args.sdk_path, get_liblldb_relative_path())):
+            LOG.info('[DAP SERVER] using explicit Cangjie SDK: %s', args.sdk_path)
+            return args.sdk_path
+        if args.sdk_source == 'path':
+            LOG.error('[DAP SERVER] liblldb is missing from SDK: {}'.format(args.sdk_path))
+            sys.exit(1)
+        LOG.warning('[DAP SERVER] configured SDK is invalid, falling back to download: %s', args.sdk_path)
+    if args.sdk_source == 'auto' and args.sdk_url:
+        LOG.info('[DAP SERVER] SDK URL is configured, download SDK: %s', args.sdk_url)
+    try:
+        return download_sdk(
+            gxx_type,
+            args.sdk_base_url,
+            args.sdk_version,
+            args.sdk_cache_dir,
+            args.sdk_insecure,
+            args.sdk_url,
+        )
+    except Exception as error:
+        LOG.error('[DAP SERVER] failed to prepare Cangjie SDK: %s', error)
+        sys.exit(1)
 
 def log_output(output):
     """log command output"""
@@ -214,9 +376,27 @@ def get_build_config(gxx_type, sdk_path):
             '-DCMAKE_CXX_COMPILER={}'.format(gpp.replace('\\', '/')),
         ]
     elif gxx_type == 'linux_aarch64':
-        return 'Ninja', 'Ninja', ['-DCROSS_NAME=aarch64-linux-gnu', '-DCROSS_SET=Yes']
+        flags = ['-DCROSS_NAME=aarch64-linux-gnu']
+        if platform.machine().lower() not in ('aarch64', 'arm64'):
+            cross_gcc = shutil.which('aarch64-linux-gnu-gcc')
+            cross_gxx = shutil.which('aarch64-linux-gnu-g++')
+            if not cross_gcc or not cross_gxx:
+                LOG.error('[DAP SERVER] aarch64-linux-gnu-gcc/g++ are required for linux_aarch64 cross build.')
+                sys.exit(1)
+            flags.extend([
+                '-DCMAKE_SYSTEM_NAME=Linux',
+                '-DCMAKE_SYSTEM_PROCESSOR=aarch64',
+                '-DCMAKE_C_COMPILER={}'.format(cross_gcc),
+                '-DCMAKE_CXX_COMPILER={}'.format(cross_gxx),
+            ])
+            flags.append('-DCROSS_SET=Yes')
+        return 'Ninja', 'Ninja', flags
     elif gxx_type in ('darwin_x86_64', 'darwin_aarch64'):
-        return 'Ninja', 'Ninja', ['-DCMAKE_OSX_ARCHITECTURES=x86_64;arm64']
+        architecture = 'x86_64' if gxx_type == 'darwin_x86_64' else 'arm64'
+        return 'Ninja', 'Ninja', [
+            '-DCMAKE_OSX_ARCHITECTURES={}'.format(architecture),
+            '-DCMAKE_SYSTEM_PROCESSOR={}'.format(architecture),
+        ]
     else:
         return 'Ninja', 'Ninja', []
 
@@ -242,11 +422,12 @@ def build(args):
     """dap server build"""
     LOG.info('[DAP SERVER] begin build...\n')
     setup_build_tools()
-    liblldb_path = get_liblldb_path(args.sdk_path)
     LOG.info('[DAP SERVER] gxx_types = {}\n'.format(args.gxx_types))
     for i, gxx_type in enumerate(args.gxx_types):
+        sdk_path = resolve_sdk_path(args, gxx_type)
+        liblldb_path = get_liblldb_path(sdk_path)
         check_compiler(gxx_type)
-        generator, compiler_type, extra_flags = get_build_config(gxx_type, args.sdk_path)
+        generator, compiler_type, extra_flags = get_build_config(gxx_type, sdk_path)
         LOG.info('[DAP SERVER] gxx_type = {}'.format(gxx_type))
         LOG.info('[DAP SERVER] generator = {}'.format(generator))
         LOG.info('[DAP SERVER] compiler_type = {}'.format(compiler_type))
@@ -452,7 +633,38 @@ def main():
                               dest = 'sdk_path',
                               type = str,
                               default = DEFAULT_SDK_PATH,
-                              help = 'Cangjie SDK path (required: set CANGJIE_SDK_PATH env var or pass --sdk-path).')
+                              help = 'Cangjie SDK path. If omitted, download the matching DailyMain SDK.')
+    parser_build.add_argument('--sdk-source',
+                              dest = 'sdk_source',
+                              type = str,
+                              choices = ['auto', 'path', 'download'],
+                              default = DEFAULT_SDK_SOURCE,
+                              help = 'SDK source: auto, path, or download.')
+    parser_build.add_argument('--sdk-url',
+                              dest = 'sdk_url',
+                              type = str,
+                              default = DEFAULT_SDK_URL,
+                              help = 'Full SDK archive URL. Overrides --sdk-base-url when downloading.')
+    parser_build.add_argument('--sdk-base-url',
+                              dest = 'sdk_base_url',
+                              type = str,
+                              default = DEFAULT_SDK_BASE_URL,
+                              help = 'Base URL used to download a Cangjie SDK when --sdk-path is omitted.')
+    parser_build.add_argument('--sdk-version',
+                              dest = 'sdk_version',
+                              type = str,
+                              default = DEFAULT_SDK_VERSION,
+                              help = 'Cangjie SDK version used in the downloaded archive name.')
+    parser_build.add_argument('--sdk-cache-dir',
+                              dest = 'sdk_cache_dir',
+                              type = str,
+                              default = DEFAULT_SDK_CACHE_DIR,
+                              help = 'Directory used to cache downloaded and extracted SDKs.')
+    parser_build.add_argument('--sdk-insecure',
+                              dest = 'sdk_insecure',
+                              action = 'store_true',
+                              default = os.environ.get('CANGJIE_SDK_INSECURE', '').lower() in ('1', 'true', 'yes'),
+                              help = 'Disable TLS certificate verification for SDK download.')
     parser_build.add_argument('-u',
                               '--unit-test-enable',
                               dest = 'unit_test_enable',
