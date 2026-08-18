@@ -5,6 +5,7 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 #include "UvLoopMgr.h"
+#include <cstdlib>
 
 using namespace Dap;
 
