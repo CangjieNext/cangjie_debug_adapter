@@ -164,7 +164,7 @@ bool LLDBApiDebugger::LoadInternalSummaries(SBTypeCategory category)
 bool LLDBApiDebugger::AddInternalTypeSummaries()
 {
     static const char *categoryName = "CPlusPlus";
-    SBTypeCategory myCategory = sbDebugger.CreateCategory(categoryName);
+    SBTypeCategoryss myCategory = sbDebugger.CreateCategory(categoryName);
     if (!myCategory.IsValid()) {
         LOG_INFO("SBTypeCategory invalid !");
         return false;
