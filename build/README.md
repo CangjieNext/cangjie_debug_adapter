@@ -15,6 +15,7 @@ Build instructions for `dap_server`. For an overview of the project see the
 │   ├── build.py          // dap_server build script
 │   ├── prepare.py        // dependency download & build script
 │   ├── deps/             // work dir: cloned sources & dependency build trees
+│   ├── sdk/              // cached SDK downloads & extracted SDKs (auto)
 │   └── logs/             // build logs
 ├── open_source           // auto-populated by prepare.py
 │   ├── googlemock/
@@ -28,7 +29,7 @@ Build instructions for `dap_server`. For an overview of the project see the
 └── test
 ```
 
-`build/deps/`, `build/logs/`, `build/build/` and `output/` are generated and git-ignored.
+`build/deps/`, `build/logs/`, `build/build/`, `build/sdk/` and `output/` are generated and git-ignored.
 
 ## 2. Prerequisites
 
@@ -61,9 +62,14 @@ dependencies: googletest, googlemock, libuv, nlohmann/json and the LLDB API head
 ```bash
 cd build
 python3 prepare.py prepare           # download and build all dependencies
+python3 prepare.py prepare --target linux_x86_64   # prepare for one target only
 python3 prepare.py prepare --force   # redo even if already done
 python3 prepare.py clean             # remove build/deps (downloads & build trees)
 ```
+
+`--target` accepts the same values as `build.py -g` (`win_mingw64`, `win_ninja`,
+`linux_x86_64`, `linux_aarch64`, `darwin_x86_64`, `darwin_aarch64`). When omitted,
+the host platform's default target is used.
 
 Static libraries are placed per platform under `open_source/<dep>/lib/`:
 
@@ -115,6 +121,7 @@ python3 build.py build -t release          # build type: debug (default) / relea
 python3 build.py build -u 1                # also run unit tests + coverage report
 python3 build.py build -u 2                # also run the smoke test subset
 python3 build.py build -c 0                # do not copy artifacts with the target suffix
+python3 build.py build --target dap_server # build only the dap_server cmake target
 python3 build.py clean                     # remove output/, build/build/ and build/logs/
 ```
 
@@ -138,7 +145,27 @@ Available `-g` values per platform:
 | macOS    | `darwin_x86_64`, `darwin_aarch64`    | matches the host architecture            |
 
 SDK path resolution (required for dap_server build, which depends on liblldb):
-set the `CANGJIE_SDK_PATH` environment variable or pass `--sdk-path`.
+`build.py` supports two SDK acquisition modes, selected by `--sdk-source`:
+
+- `path`: use `--sdk-path` or `CANGJIE_SDK_PATH`.
+- `download`: download from `--sdk-url`, or construct the archive URL from
+  `--sdk-base-url` and `--sdk-version`.
+- `auto`: use the configured SDK path when present, otherwise download.
+
+If no options are supplied, `auto` downloads the matching SDK from the
+`DailyMain` OBS path and caches it under `build/sdk/`. For example:
+
+```bash
+python3 build.py build -t release -g linux_x86_64 \
+  --sdk-source download \
+  --sdk-url https://cangjie103.obs.cn-north-4.myhuaweicloud.com/CangjieDaily/Cangjie/DailyMain/cangjie-sdk-linux-x64-1.0.0.tar.gz
+```
+
+The equivalent environment variables are `CANGJIE_SDK_SOURCE`,
+`CANGJIE_SDK_PATH`, `CANGJIE_SDK_URL`, `CANGJIE_SDK_BASE_URL`, and
+`CANGJIE_SDK_VERSION`.
+`--sdk-cache-dir` overrides the SDK cache location (default `build/sdk/`),
+and `--sdk-insecure` disables TLS certificate verification for the download.
 The SDK provides the liblldb dynamic library at:
 - Windows : `<sdk>/tools/bin/liblldb.dll`
 - Linux   : `<sdk>/third_party/llvm/lib/liblldb.so`

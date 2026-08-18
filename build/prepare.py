@@ -84,12 +84,58 @@ class BuildConfig:
         self.cmake_flags = cmake_flags or []
 
 
-def get_build_configs(sdk_path=None):
+def get_build_configs(sdk_path=None, target=None):
     """Get list of build configurations for the current platform.
     On Windows, returns configs for each available compiler (g++ and/or clang++).
     """
     system = platform.system()
     machine = platform.machine()
+
+    if target in ('win_mingw64', 'win_ninja'):
+        if system != 'Windows':
+            raise RuntimeError('{} must be prepared on Windows'.format(target))
+        gpp = shutil.which('g++') or shutil.which('g++.exe')
+        gcc = shutil.which('gcc') or shutil.which('gcc.exe')
+        if not gpp or not gcc:
+            LOG.error('No MinGW C++ compiler found for {}'.format(target))
+            sys.exit(1)
+        compiler_flags = [
+            '-DCMAKE_C_COMPILER={}'.format(gcc.replace('\\', '/')),
+            '-DCMAKE_CXX_COMPILER={}'.format(gpp.replace('\\', '/')),
+        ]
+        if target == 'win_mingw64':
+            generator = 'MinGW Makefiles'
+            if not shutil.which('mingw32-make') and not shutil.which('mingw32-make.exe'):
+                raise RuntimeError('mingw32-make is required for {}'.format(target))
+        else:
+            generator = 'Ninja'
+            if not shutil.which('ninja') and not shutil.which('ninja.exe'):
+                raise RuntimeError('ninja is required for {}'.format(target))
+        return [BuildConfig(target, 'mingw', generator, compiler_flags)]
+    if target in ('linux_x86_64', 'linux_aarch64'):
+        if system != 'Linux':
+            raise RuntimeError('{} must be prepared on Linux'.format(target))
+        if target == 'linux_x86_64':
+            return [BuildConfig(target, 'gcc', 'Ninja')]
+        if machine == 'aarch64':
+            return [BuildConfig(target, 'aarch64', 'Ninja')]
+        cross_gcc = shutil.which('aarch64-linux-gnu-gcc')
+        cross_gxx = shutil.which('aarch64-linux-gnu-g++')
+        if not cross_gcc or not cross_gxx:
+            raise RuntimeError('aarch64-linux-gnu-gcc/g++ are required for cross compiling {}'.format(target))
+        return [BuildConfig(target, 'aarch64', 'Ninja', [
+            '-DCMAKE_SYSTEM_NAME=Linux',
+            '-DCMAKE_SYSTEM_PROCESSOR=aarch64',
+            '-DCMAKE_C_COMPILER={}'.format(cross_gcc),
+            '-DCMAKE_CXX_COMPILER={}'.format(cross_gxx),
+        ])]
+    if target in ('darwin_x86_64', 'darwin_aarch64'):
+        if system != 'Darwin':
+            raise RuntimeError('{} must be prepared on macOS'.format(target))
+        architecture = 'x86_64' if target == 'darwin_x86_64' else 'arm64'
+        return [BuildConfig(target, 'darwin', 'Ninja', [
+            '-DCMAKE_OSX_ARCHITECTURES={}'.format(architecture),
+        ])]
 
     if system == 'Windows':
         configs = []
@@ -479,7 +525,7 @@ def prepare_lldb(force=False):
 def prepare(args):
     """Prepare all dependencies."""
     setup_build_tools()
-    configs = get_build_configs(args.sdk_path)
+    configs = get_build_configs(args.sdk_path, args.target)
     information(configs)
     LOG.info('')
 
@@ -526,6 +572,13 @@ def main():
                                 type=str,
                                 default=DEFAULT_SDK_PATH,
                                 help='Cangjie SDK path (needed for clang on Windows to locate mingw runtime libs).')
+    parser_prepare.add_argument('--target',
+                                dest='target',
+                                type=str,
+                                choices=['win_mingw64', 'win_ninja', 'linux_x86_64',
+                                         'linux_aarch64', 'darwin_x86_64', 'darwin_aarch64'],
+                                default=None,
+                                help='prepare dependencies for one DAP target only')
     parser_prepare.set_defaults(func=prepare)
 
     parser_clean = subparsers.add_parser('clean', help='clean downloaded and built dependencies')
