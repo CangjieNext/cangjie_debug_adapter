@@ -12,7 +12,7 @@ using namespace Dap::Protocol;
 using namespace Dap;
 
 void AttachHelper::ParseParameters(const AttachRequest &request)
-{
+{11
     attachParams.Clear();
     if (request.arguments.program.has_value()) {
         attachParams.program = request.arguments.program.value();
