@@ -505,7 +505,11 @@ bool CommonUtils::CheckFilePath(const std::string &filePath, std::string &errorM
 
 int CommonUtils::GetCurrentPid()
 {
+#ifdef _WIN32
+    return static_cast<int>(GetCurrentProcessId());
+#else
     return static_cast<int>(getpid());
+#endif
 }
 
 std::string CommonUtils::JsonDump(const nlohmann::json &json)
