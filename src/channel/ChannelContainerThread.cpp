@@ -37,19 +37,20 @@ bool ChannelContainerThread::Start()
     if (threadPtr == nullptr) {
         return false;
     }
-    threadPtr->detach();
     this->isStart = true;
     return true;
 }
 
 bool ChannelContainerThread::Stop()
 {
-    if (!this->isStart) {
-        return true;
+    if (this->isStart) {
+        ChannelContainer::Instance().Stop();
+        UvLoopMgr::Instance().LoopStop(this->id);
+        this->isStart = false;
     }
-    ChannelContainer::Instance().Stop();
-    UvLoopMgr::Instance().LoopStop(this->id);
-    this->isStart = false;
+    if (threadPtr != nullptr && threadPtr->joinable()) {
+        threadPtr->join();
+    }
     return true;
 }
 

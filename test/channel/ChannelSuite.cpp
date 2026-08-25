@@ -13,6 +13,10 @@
 using namespace ::testing;
 using namespace Dap;
 
+namespace {
+constexpr int EXPECTED_MESSAGE_COUNT = 2;
+}
+
 class MockChannelHandler : public ChannelHandler {
 public:
     MockChannelHandler() {}
@@ -82,7 +86,7 @@ TEST_F(ChannelSuite, on_message)
     channel->OnError(0, "normal message.");
     EXPECT_EQ(handler->MsgCount(), 1);
     channel->OnMessage("normal message.");
-    EXPECT_EQ(handler->MsgCount(), 2);
+    EXPECT_EQ(handler->MsgCount(), EXPECTED_MESSAGE_COUNT);
 }
 
 TEST_F(ChannelSuite, loop_id)

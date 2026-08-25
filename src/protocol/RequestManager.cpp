@@ -10,15 +10,21 @@
 
 using namespace Dap::Protocol;
 
-#define SET_REQUEST_FIELD(JSON, FIELD_NAME, REQUEST_FIELD)          \
-    if ((JSON).contains(FIELD_NAME) && !(JSON)[FIELD_NAME].is_null()) { \
-        REQUEST_FIELD = (JSON)[FIELD_NAME];                           \
+template <typename T>
+void SetRequestField(const json_t &json, const std::string &fieldName, T &requestField)
+{
+    if (json.contains(fieldName) && !json[fieldName].is_null()) {
+        requestField = json[fieldName];
     }
+}
 
-#define SET_REQUEST_FIELD_EX(JSON, FIELD_NAME, FIELD_VALUE, REQUEST_FIELD) \
-    if ((JSON).contains(FIELD_NAME) && !(JSON)[FIELD_NAME].is_null()) {        \
-        REQUEST_FIELD = FIELD_VALUE;                                       \
+template <typename T, typename Function>
+void SetConvertedRequestField(const json_t &json, const std::string &fieldName, T &requestField, Function function)
+{
+    if (json.contains(fieldName) && !json[fieldName].is_null()) {
+        requestField = function();
     }
+}
 
 void RequestManager::Register()
 {
@@ -26,57 +32,57 @@ void RequestManager::Register()
     if (isRegister) {
         return;
     }
-    INSERT_REQUEST(requestFactory, REQ_RES_INITIALIZE, &ToInitializeRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_LAUNCH, &ToLaunchRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_ATTACH, &ToAttachRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_CONFIGURATION_DONE, &ToConfigurationDoneRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_RESTART, &ToRestartRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_DISCONNECT, &ToDisconnectRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_TERMINATE, &ToTerminateRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_SET_BREAKPOINTS, &ToSetBreakpointsRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_BREAKPOINT_LOCATIONS, &ToBreakpointLocationsRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_SET_FUNCTION_BREAKPOINTS, &ToSetFunctionBreakpointsRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_DATA_BREAKPOINT_INFO, &ToDataBreakpointInfoRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_SET_DATA_BREAKPOINTS, &ToSetDataBreakpointsRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_SET_EXCEPTION_BREAKPOINTS, &ToSetExceptionBreakpointsRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_SET_INSTRUCTION_BREAKPOINTS, &ToSetInstructionBreakpointsRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_CONTINUE, &ToContinueRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_PAUSE, &ToPauseRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_NEXT, &ToNextRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_STEP_IN, &ToStepInRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_STEP_OUT, &ToStepOutRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_STACK_TRACE, &ToStackTraceRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_THREADS, &ToThreadsRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_SCOPES, &ToScopesRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_VARIABLES, &ToVariablesRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_VARIABLES_EXPAND, &ToVariablesExpandRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_PRE_VARIABLES, &ToPreVariables)
-    INSERT_REQUEST(requestFactory, REQ_RES_SET_VARIABLE, &ToSetVariableRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_DISASSEMBLE, &ToDisassembleRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_EVALUATE, &ToEvaluateRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_DEBUG_IN_CONSOLE, &ToDebugInConsoleRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_SOURCE, &ToSourceRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_READ_MEMORY, &ToReadMemoryRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_WRITE_MEMORY, &ToWriteMemoryRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_REVERSE_STEP, &ToReverseStepRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_UNDO, &ToUndoRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_REVERSE_CONTINUE, &ToReverseContinueRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_SET_EXECUTION_POINT, &ToSetExecutionPointRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_RECORD_POINTS, &ToRecordPointsRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_GOTO_RECORD_POINT, &ToGotoRecordPointRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_CONTINUE_IN_REVERSE, &ToContinueInReverseRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_STEP_IN_REVERSE, &ToStepInReverseRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_CACHE_DATA_CONFIG, &ToCacheDataConfigRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_RECORD_MESSAGE, &ToRecordMessageRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_SET_MEMORY_BREAKPOINTS, &ToSetMemoryBreakpointsRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_GET_BITMAP, &ToGetBitmapRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_LOAD_MODULES, &ToLoadModulesRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_ADD_SOURCE_MAPPING, &ToAddSourceMappingRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_RESET_SOURCE_MAPPING, &ToResetSourceMappingRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_ADD_SOURCE_BREAKPOINT, &ToAddSourceBreakpointRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_DELETE_BREAKPOINT, &ToDeleteBreakpointRequest)
-    INSERT_REQUEST(requestFactory, REQ_RES_VARIABLE_HEX_VIEW, &ToVariableHexViewRequest);
-    INSERT_REQUEST(requestFactory, REQ_RES_COMMAND_COMPLETION, &ToCommandCompletionRequest);
+    InsertRequest(requestFactory, REQ_RES_INITIALIZE, &ToInitializeRequest);
+    InsertRequest(requestFactory, REQ_RES_LAUNCH, &ToLaunchRequest);
+    InsertRequest(requestFactory, REQ_RES_ATTACH, &ToAttachRequest);
+    InsertRequest(requestFactory, REQ_RES_CONFIGURATION_DONE, &ToConfigurationDoneRequest);
+    InsertRequest(requestFactory, REQ_RES_RESTART, &ToRestartRequest);
+    InsertRequest(requestFactory, REQ_RES_DISCONNECT, &ToDisconnectRequest);
+    InsertRequest(requestFactory, REQ_RES_TERMINATE, &ToTerminateRequest);
+    InsertRequest(requestFactory, REQ_RES_SET_BREAKPOINTS, &ToSetBreakpointsRequest);
+    InsertRequest(requestFactory, REQ_RES_BREAKPOINT_LOCATIONS, &ToBreakpointLocationsRequest);
+    InsertRequest(requestFactory, REQ_RES_SET_FUNCTION_BREAKPOINTS, &ToSetFunctionBreakpointsRequest);
+    InsertRequest(requestFactory, REQ_RES_DATA_BREAKPOINT_INFO, &ToDataBreakpointInfoRequest);
+    InsertRequest(requestFactory, REQ_RES_SET_DATA_BREAKPOINTS, &ToSetDataBreakpointsRequest);
+    InsertRequest(requestFactory, REQ_RES_SET_EXCEPTION_BREAKPOINTS, &ToSetExceptionBreakpointsRequest);
+    InsertRequest(requestFactory, REQ_RES_SET_INSTRUCTION_BREAKPOINTS, &ToSetInstructionBreakpointsRequest);
+    InsertRequest(requestFactory, REQ_RES_CONTINUE, &ToContinueRequest);
+    InsertRequest(requestFactory, REQ_RES_PAUSE, &ToPauseRequest);
+    InsertRequest(requestFactory, REQ_RES_NEXT, &ToNextRequest);
+    InsertRequest(requestFactory, REQ_RES_STEP_IN, &ToStepInRequest);
+    InsertRequest(requestFactory, REQ_RES_STEP_OUT, &ToStepOutRequest);
+    InsertRequest(requestFactory, REQ_RES_STACK_TRACE, &ToStackTraceRequest);
+    InsertRequest(requestFactory, REQ_RES_THREADS, &ToThreadsRequest);
+    InsertRequest(requestFactory, REQ_RES_SCOPES, &ToScopesRequest);
+    InsertRequest(requestFactory, REQ_RES_VARIABLES, &ToVariablesRequest);
+    InsertRequest(requestFactory, REQ_RES_VARIABLES_EXPAND, &ToVariablesExpandRequest);
+    InsertRequest(requestFactory, REQ_RES_PRE_VARIABLES, &ToPreVariables);
+    InsertRequest(requestFactory, REQ_RES_SET_VARIABLE, &ToSetVariableRequest);
+    InsertRequest(requestFactory, REQ_RES_DISASSEMBLE, &ToDisassembleRequest);
+    InsertRequest(requestFactory, REQ_RES_EVALUATE, &ToEvaluateRequest);
+    InsertRequest(requestFactory, REQ_RES_DEBUG_IN_CONSOLE, &ToDebugInConsoleRequest);
+    InsertRequest(requestFactory, REQ_RES_SOURCE, &ToSourceRequest);
+    InsertRequest(requestFactory, REQ_RES_READ_MEMORY, &ToReadMemoryRequest);
+    InsertRequest(requestFactory, REQ_RES_WRITE_MEMORY, &ToWriteMemoryRequest);
+    InsertRequest(requestFactory, REQ_RES_REVERSE_STEP, &ToReverseStepRequest);
+    InsertRequest(requestFactory, REQ_RES_UNDO, &ToUndoRequest);
+    InsertRequest(requestFactory, REQ_RES_REVERSE_CONTINUE, &ToReverseContinueRequest);
+    InsertRequest(requestFactory, REQ_RES_SET_EXECUTION_POINT, &ToSetExecutionPointRequest);
+    InsertRequest(requestFactory, REQ_RES_RECORD_POINTS, &ToRecordPointsRequest);
+    InsertRequest(requestFactory, REQ_RES_GOTO_RECORD_POINT, &ToGotoRecordPointRequest);
+    InsertRequest(requestFactory, REQ_RES_CONTINUE_IN_REVERSE, &ToContinueInReverseRequest);
+    InsertRequest(requestFactory, REQ_RES_STEP_IN_REVERSE, &ToStepInReverseRequest);
+    InsertRequest(requestFactory, REQ_RES_CACHE_DATA_CONFIG, &ToCacheDataConfigRequest);
+    InsertRequest(requestFactory, REQ_RES_RECORD_MESSAGE, &ToRecordMessageRequest);
+    InsertRequest(requestFactory, REQ_RES_SET_MEMORY_BREAKPOINTS, &ToSetMemoryBreakpointsRequest);
+    InsertRequest(requestFactory, REQ_RES_GET_BITMAP, &ToGetBitmapRequest);
+    InsertRequest(requestFactory, REQ_RES_LOAD_MODULES, &ToLoadModulesRequest);
+    InsertRequest(requestFactory, REQ_RES_ADD_SOURCE_MAPPING, &ToAddSourceMappingRequest);
+    InsertRequest(requestFactory, REQ_RES_RESET_SOURCE_MAPPING, &ToResetSourceMappingRequest);
+    InsertRequest(requestFactory, REQ_RES_ADD_SOURCE_BREAKPOINT, &ToAddSourceBreakpointRequest);
+    InsertRequest(requestFactory, REQ_RES_DELETE_BREAKPOINT, &ToDeleteBreakpointRequest);
+    InsertRequest(requestFactory, REQ_RES_VARIABLE_HEX_VIEW, &ToVariableHexViewRequest);
+    InsertRequest(requestFactory, REQ_RES_COMMAND_COMPLETION, &ToCommandCompletionRequest);
 
     reqToJsonFactory.emplace(REQ_RES_RUN_IN_TERMINAL, &ToRunInTerminalJson);
     isRegister = true;
@@ -181,13 +187,13 @@ std::optional<json_t> RequestManager::ToJson(const Request &request)
 
 bool RequestManager::SetRequestSource(const json_t &json, Dap::Protocol::Source &source)
 {
-    SET_REQUEST_FIELD(json, "name", source.name)
-    SET_REQUEST_FIELD(json, "path", source.path)
-    SET_REQUEST_FIELD(json, "sourceReference", source.sourceReference)
+    SetRequestField(json, "name", source.name);
+    SetRequestField(json, "path", source.path);
+    SetRequestField(json, "sourceReference", source.sourceReference);
     if (HasValue(json, "presentationHint")) {
         source.presentationHint = STR_TO_ENUM<PresentationHint>(json["presentationHint"]);
     }
-    SET_REQUEST_FIELD(json, "origin", source.origin)
+    SetRequestField(json, "origin", source.origin);
     if (HasValue(json, "sources")) {
         std::vector<Source> sources;
         for (auto it = json["sources"].begin(); it != json["sources"].end(); ++it) {
@@ -236,21 +242,21 @@ std::unique_ptr<Request> RequestManager::ToInitializeRequest(const json_t &json)
         return nullptr;
     }
     requestPointer->arguments.adapterID = json["arguments"]["adapterID"];
-    SET_REQUEST_FIELD(json["arguments"], "clientID", requestPointer->arguments.clientID)
-    SET_REQUEST_FIELD(json["arguments"], "clientName", requestPointer->arguments.clientName)
-    SET_REQUEST_FIELD(json["arguments"], "locale", requestPointer->arguments.locale)
-    SET_REQUEST_FIELD(json["arguments"], "linesStartAt1", requestPointer->arguments.linesStartAt1)
-    SET_REQUEST_FIELD(json["arguments"], "columnsStartAt1", requestPointer->arguments.columnsStartAt1)
-    SET_REQUEST_FIELD_EX(json["arguments"], "pathFormat", STR_TO_ENUM<PathFormat>(json["arguments"]["pathFormat"]),
-        requestPointer->arguments.pathFormat)
-    SET_REQUEST_FIELD(json["arguments"], "supportsVariableType", requestPointer->arguments.supportsVariableType)
-    SET_REQUEST_FIELD(json["arguments"], "supportsVariablePaging", requestPointer->arguments.supportsVariablePaging)
-    SET_REQUEST_FIELD(json["arguments"], "supportsRunInTerminalRequest",
-        requestPointer->arguments.supportsRunInTerminalRequest)
-    SET_REQUEST_FIELD(json["arguments"], "supportsMemoryReferences", requestPointer->arguments.supportsMemoryReferences)
-    SET_REQUEST_FIELD(json["arguments"], "supportsProgressReporting",
-        requestPointer->arguments.supportsProgressReporting)
-    SET_REQUEST_FIELD(json["arguments"], "supportsInvalidatedEvent", requestPointer->arguments.supportsInvalidatedEvent)
+    SetRequestField(json["arguments"], "clientID", requestPointer->arguments.clientID);
+    SetRequestField(json["arguments"], "clientName", requestPointer->arguments.clientName);
+    SetRequestField(json["arguments"], "locale", requestPointer->arguments.locale);
+    SetRequestField(json["arguments"], "linesStartAt1", requestPointer->arguments.linesStartAt1);
+    SetRequestField(json["arguments"], "columnsStartAt1", requestPointer->arguments.columnsStartAt1);
+    SetConvertedRequestField(json["arguments"], "pathFormat", requestPointer->arguments.pathFormat,
+        [&json]() { return STR_TO_ENUM<PathFormat>(json["arguments"]["pathFormat"]); });
+    SetRequestField(json["arguments"], "supportsVariableType", requestPointer->arguments.supportsVariableType);
+    SetRequestField(json["arguments"], "supportsVariablePaging", requestPointer->arguments.supportsVariablePaging);
+    SetRequestField(json["arguments"], "supportsRunInTerminalRequest",
+        requestPointer->arguments.supportsRunInTerminalRequest);
+    SetRequestField(json["arguments"], "supportsMemoryReferences", requestPointer->arguments.supportsMemoryReferences);
+    SetRequestField(json["arguments"], "supportsProgressReporting",
+        requestPointer->arguments.supportsProgressReporting);
+    SetRequestField(json["arguments"], "supportsInvalidatedEvent", requestPointer->arguments.supportsInvalidatedEvent);
     return requestPointer;
 }
 
@@ -259,9 +265,9 @@ std::vector<SetupCommand> RequestManager::GetSetupCommands(const json_t &setupCo
     std::vector<SetupCommand> setupCommandVec;
     for (auto cmdJson : setupCommandsJson) {
         SetupCommand setupCommand;
-        SET_REQUEST_FIELD(cmdJson, "ignoreFailures", setupCommand.ignoreFailures)
-        SET_REQUEST_FIELD(cmdJson, "description", setupCommand.description)
-        SET_REQUEST_FIELD(cmdJson, "text", setupCommand.text)
+        SetRequestField(cmdJson, "ignoreFailures", setupCommand.ignoreFailures);
+        SetRequestField(cmdJson, "description", setupCommand.description);
+        SetRequestField(cmdJson, "text", setupCommand.text);
         setupCommandVec.push_back(std::move(setupCommand));
     }
     return setupCommandVec;
@@ -278,26 +284,26 @@ std::vector<std::string> RequestManager::GetVectorString(const json_t &stringVec
 
 void RequestManager::SetLaunchArguments(const json_t &json, LaunchRequestArguments &arguments)
 {
-    SET_REQUEST_FIELD(json["arguments"], "noDebug", arguments.noDebug)
-    SET_REQUEST_FIELD(json["arguments"], "__restart", arguments.__restart)
-    SET_REQUEST_FIELD(json["arguments"], "name", arguments.name)
-    SET_REQUEST_FIELD(json["arguments"], "type", arguments.type)
-    SET_REQUEST_FIELD(json["arguments"], "request", arguments.request)
-    SET_REQUEST_FIELD(json["arguments"], "program", arguments.program)
-    SET_REQUEST_FIELD(json["arguments"], "stopAtEntry", arguments.stopAtEntry)
-    SET_REQUEST_FIELD(json["arguments"], "cwd", arguments.cwd)
-    SET_REQUEST_FIELD(json["arguments"], "externalConsole", arguments.externalConsole)
-    SET_REQUEST_FIELD(json["arguments"], "__configurationTarget", arguments.__configurationTarget)
-    SET_REQUEST_FIELD(json["arguments"], "__sessionId", arguments.__sessionId)
-    SET_REQUEST_FIELD(json["arguments"], "remotePlatform", arguments.remotePlatform)
-    SET_REQUEST_FIELD(json["arguments"], "remoteAddress", arguments.remoteAddress)
-    SET_REQUEST_FIELD(json["arguments"], "remoteFilePath", arguments.remoteFilePath)
-    SET_REQUEST_FIELD(json["arguments"], "remote", arguments.remote)
-    SET_REQUEST_FIELD(json["arguments"], "debuggeeStarted", arguments.debuggeeStarted)
-    SET_REQUEST_FIELD(json["arguments"], "remoteConnected", arguments.remoteConnected)
-    SET_REQUEST_FIELD(json["arguments"], "vmMode", arguments.vmMode)
-    SET_REQUEST_FIELD(json["arguments"], "vmAddress", arguments.vmAddress)
-    SET_REQUEST_FIELD(json["arguments"], "vmPort", arguments.vmPort)
+    SetRequestField(json["arguments"], "noDebug", arguments.noDebug);
+    SetRequestField(json["arguments"], "__restart", arguments.restartData);
+    SetRequestField(json["arguments"], "name", arguments.name);
+    SetRequestField(json["arguments"], "type", arguments.type);
+    SetRequestField(json["arguments"], "request", arguments.request);
+    SetRequestField(json["arguments"], "program", arguments.program);
+    SetRequestField(json["arguments"], "stopAtEntry", arguments.stopAtEntry);
+    SetRequestField(json["arguments"], "cwd", arguments.cwd);
+    SetRequestField(json["arguments"], "externalConsole", arguments.externalConsole);
+    SetRequestField(json["arguments"], "__configurationTarget", arguments.configurationTarget);
+    SetRequestField(json["arguments"], "__sessionId", arguments.sessionId);
+    SetRequestField(json["arguments"], "remotePlatform", arguments.remotePlatform);
+    SetRequestField(json["arguments"], "remoteAddress", arguments.remoteAddress);
+    SetRequestField(json["arguments"], "remoteFilePath", arguments.remoteFilePath);
+    SetRequestField(json["arguments"], "remote", arguments.remote);
+    SetRequestField(json["arguments"], "debuggeeStarted", arguments.debuggeeStarted);
+    SetRequestField(json["arguments"], "remoteConnected", arguments.remoteConnected);
+    SetRequestField(json["arguments"], "vmMode", arguments.vmMode);
+    SetRequestField(json["arguments"], "vmAddress", arguments.vmAddress);
+    SetRequestField(json["arguments"], "vmPort", arguments.vmPort);
     if (HasValue(json["arguments"], "args") && json["arguments"]["args"].is_array()) {
         std::vector<std::string> argsVec;
         for (auto arg : json["arguments"]["args"]) {
@@ -354,28 +360,28 @@ std::unique_ptr<Request> RequestManager::ToLaunchRequest(const json_t &json)
 
 void RequestManager::SetAttachArguments(const json_t &json, AttachRequestArguments &arguments)
 {
-    SET_REQUEST_FIELD(json["arguments"], "name", arguments.name)
-    SET_REQUEST_FIELD(json["arguments"], "type", arguments.type)
-    SET_REQUEST_FIELD(json["arguments"], "request", arguments.request)
-    SET_REQUEST_FIELD(json["arguments"], "program", arguments.program)
-    SET_REQUEST_FIELD(json["arguments"], "processId", arguments.processId)
+    SetRequestField(json["arguments"], "name", arguments.name);
+    SetRequestField(json["arguments"], "type", arguments.type);
+    SetRequestField(json["arguments"], "request", arguments.request);
+    SetRequestField(json["arguments"], "program", arguments.program);
+    SetRequestField(json["arguments"], "processId", arguments.processId);
     if (HasValue(json["arguments"], "setupCommands") && json["arguments"]["setupCommands"].is_array()) {
         arguments.setupCommands = GetSetupCommands(json["arguments"]["setupCommands"]);
     }
     if (HasValue(json["arguments"], "scriptCommands") && json["arguments"]["scriptCommands"].is_array()) {
         arguments.scriptCommands = GetVectorString(json["arguments"]["scriptCommands"]);
     }
-    SET_REQUEST_FIELD(json["arguments"], "__configurationTarget", arguments.__configurationTarget)
-    SET_REQUEST_FIELD(json["arguments"], "__sessionId", arguments.__sessionId)
-    SET_REQUEST_FIELD(json["arguments"], "cwd", arguments.cwd)
-    SET_REQUEST_FIELD(json["arguments"], "__restart", arguments.__restart)
-    SET_REQUEST_FIELD(json["arguments"], "remotePlatform", arguments.remotePlatform)
-    SET_REQUEST_FIELD(json["arguments"], "remoteAddress", arguments.remoteAddress)
-    SET_REQUEST_FIELD(json["arguments"], "remote", arguments.remote)
-    SET_REQUEST_FIELD(json["arguments"], "isContainer", arguments.isContainer)
-    SET_REQUEST_FIELD_EX(json["arguments"], "attachStep", STR_TO_ENUM<AttachStep>(json["arguments"]["attachStep"]),
-        arguments.attachStep)
-    SET_REQUEST_FIELD(json["arguments"], "showStaticGlobalVars", arguments.showStaticGlobalVars)
+    SetRequestField(json["arguments"], "__configurationTarget", arguments.configurationTarget);
+    SetRequestField(json["arguments"], "__sessionId", arguments.sessionId);
+    SetRequestField(json["arguments"], "cwd", arguments.cwd);
+    SetRequestField(json["arguments"], "__restart", arguments.restartData);
+    SetRequestField(json["arguments"], "remotePlatform", arguments.remotePlatform);
+    SetRequestField(json["arguments"], "remoteAddress", arguments.remoteAddress);
+    SetRequestField(json["arguments"], "remote", arguments.remote);
+    SetRequestField(json["arguments"], "isContainer", arguments.isContainer);
+    SetConvertedRequestField(json["arguments"], "attachStep", arguments.attachStep,
+        [&json]() { return STR_TO_ENUM<AttachStep>(json["arguments"]["attachStep"]); });
+    SetRequestField(json["arguments"], "showStaticGlobalVars", arguments.showStaticGlobalVars);
     if (HasValue(json["arguments"], "startupCommands") && json["arguments"]["startupCommands"].is_array()) {
         arguments.startupCommands = GetVectorString(json["arguments"]["startupCommands"]);
     }
@@ -458,9 +464,9 @@ std::unique_ptr<Request> RequestManager::ToDisconnectRequest(const json_t &json)
     }
     if (HasValue(json, "arguments")) {
         DisconnectArguments disconnectArguments;
-        SET_REQUEST_FIELD(json["arguments"], "restart", disconnectArguments.restart)
-        SET_REQUEST_FIELD(json["arguments"], "terminateDebuggee", disconnectArguments.terminateDebuggee)
-        SET_REQUEST_FIELD(json["arguments"], "isDebuggeeCrashed", disconnectArguments.isDebuggeeCrashed)
+        SetRequestField(json["arguments"], "restart", disconnectArguments.restart);
+        SetRequestField(json["arguments"], "terminateDebuggee", disconnectArguments.terminateDebuggee);
+        SetRequestField(json["arguments"], "isDebuggeeCrashed", disconnectArguments.isDebuggeeCrashed);
         requestPointer->arguments = std::move(disconnectArguments);
     }
     return requestPointer;
@@ -475,7 +481,7 @@ std::unique_ptr<Request> RequestManager::ToTerminateRequest(const json_t &json)
     }
     if (HasValue(json, "arguments")) {
         TerminateArguments terminateArguments;
-        SET_REQUEST_FIELD(json["arguments"], "restart", terminateArguments.restart)
+        SetRequestField(json["arguments"], "restart", terminateArguments.restart);
         requestPointer->arguments = std::move(terminateArguments);
     }
     return requestPointer;
@@ -507,10 +513,10 @@ std::unique_ptr<Request> RequestManager::ToSetBreakpointsRequest(const json_t &j
                 return nullptr;
             }
             sourceBreakpoint.line = it.value()["line"];
-            SET_REQUEST_FIELD(it.value(), "column", sourceBreakpoint.column)
-            SET_REQUEST_FIELD(it.value(), "condition", sourceBreakpoint.condition)
-            SET_REQUEST_FIELD(it.value(), "hitCondition", sourceBreakpoint.hitCondition)
-            SET_REQUEST_FIELD(it.value(), "logMessage", sourceBreakpoint.logMessage)
+            SetRequestField(it.value(), "column", sourceBreakpoint.column);
+            SetRequestField(it.value(), "condition", sourceBreakpoint.condition);
+            SetRequestField(it.value(), "hitCondition", sourceBreakpoint.hitCondition);
+            SetRequestField(it.value(), "logMessage", sourceBreakpoint.logMessage);
             breakpoints.push_back(std::move(sourceBreakpoint));
         }
         setBreakpointsArguments.breakpoints = std::move(breakpoints);
@@ -522,7 +528,7 @@ std::unique_ptr<Request> RequestManager::ToSetBreakpointsRequest(const json_t &j
         }
         setBreakpointsArguments.lines = std::move(lines);
     }
-    SET_REQUEST_FIELD(json["arguments"], "sourceModified", setBreakpointsArguments.sourceModified)
+    SetRequestField(json["arguments"], "sourceModified", setBreakpointsArguments.sourceModified);
     requestPointer->arguments = std::move(setBreakpointsArguments);
     return requestPointer;
 }
@@ -550,11 +556,11 @@ std::unique_ptr<Request> RequestManager::ToBreakpointLocationsRequest(const json
             return nullptr;
         }
         breakpointLocationsArguments.line = json["arguments"]["line"];
-        SET_REQUEST_FIELD(json["arguments"], "column", breakpointLocationsArguments.column)
-        SET_REQUEST_FIELD(json["arguments"], "endLine", breakpointLocationsArguments.endLine)
-        SET_REQUEST_FIELD(json["arguments"], "endColumn", breakpointLocationsArguments.endColumn)
-        SET_REQUEST_FIELD(json["arguments"], "startAddress", breakpointLocationsArguments.startAddress)
-        SET_REQUEST_FIELD(json["arguments"], "filterStepinLocation", breakpointLocationsArguments.filterStepinLocation)
+        SetRequestField(json["arguments"], "column", breakpointLocationsArguments.column);
+        SetRequestField(json["arguments"], "endLine", breakpointLocationsArguments.endLine);
+        SetRequestField(json["arguments"], "endColumn", breakpointLocationsArguments.endColumn);
+        SetRequestField(json["arguments"], "startAddress", breakpointLocationsArguments.startAddress);
+        SetRequestField(json["arguments"], "filterStepinLocation", breakpointLocationsArguments.filterStepinLocation);
         requestPointer->arguments = std::move(breakpointLocationsArguments);
     }
     return requestPointer;
@@ -563,18 +569,18 @@ std::unique_ptr<Request> RequestManager::ToBreakpointLocationsRequest(const json
 FunctionBreakpointData RequestManager::SetFunctionBreakpointData(const json_t &dataJson)
 {
     FunctionBreakpointData functionBreakpointData;
-    SET_REQUEST_FIELD(dataJson["data"], "supportsConditionalBreakpoints",
-        functionBreakpointData.supportsConditionalBreakpoints)
-    SET_REQUEST_FIELD(dataJson["data"], "supportsHitConditionalBreakpoints",
-        functionBreakpointData.supportsHitConditionalBreakpoints)
-    SET_REQUEST_FIELD(dataJson["data"], "supportsLogPoints", functionBreakpointData.supportsLogPoints)
-    SET_REQUEST_FIELD(dataJson["data"], "supportsFunctionBreakpoints",
-        functionBreakpointData.supportsFunctionBreakpoints)
-    SET_REQUEST_FIELD(dataJson["data"], "supportsDataBreakpoints", functionBreakpointData.supportsDataBreakpoints)
-    SET_REQUEST_FIELD(dataJson["data"], "id", functionBreakpointData.id)
-    SET_REQUEST_FIELD(dataJson["data"], "verified", functionBreakpointData.verified)
-    SET_REQUEST_FIELD(dataJson["data"], "line", functionBreakpointData.line)
-    SET_REQUEST_FIELD(dataJson["data"], "sessionId", functionBreakpointData.sessionId)
+    SetRequestField(dataJson["data"], "supportsConditionalBreakpoints",
+        functionBreakpointData.supportsConditionalBreakpoints);
+    SetRequestField(dataJson["data"], "supportsHitConditionalBreakpoints",
+        functionBreakpointData.supportsHitConditionalBreakpoints);
+    SetRequestField(dataJson["data"], "supportsLogPoints", functionBreakpointData.supportsLogPoints);
+    SetRequestField(dataJson["data"], "supportsFunctionBreakpoints",
+        functionBreakpointData.supportsFunctionBreakpoints);
+    SetRequestField(dataJson["data"], "supportsDataBreakpoints", functionBreakpointData.supportsDataBreakpoints);
+    SetRequestField(dataJson["data"], "id", functionBreakpointData.id);
+    SetRequestField(dataJson["data"], "verified", functionBreakpointData.verified);
+    SetRequestField(dataJson["data"], "line", functionBreakpointData.line);
+    SetRequestField(dataJson["data"], "sessionId", functionBreakpointData.sessionId);
     return functionBreakpointData;
 }
 
@@ -591,7 +597,7 @@ std::unique_ptr<Request> RequestManager::ToDataBreakpointInfoRequest(const json_
     }
     DataBreakpointInfoArguments dataBreakpointInfoArguments;
     dataBreakpointInfoArguments.name = json["arguments"]["name"];
-    SET_REQUEST_FIELD(json["arguments"], "variablesReference", dataBreakpointInfoArguments.variablesReference)
+    SetRequestField(json["arguments"], "variablesReference", dataBreakpointInfoArguments.variablesReference);
     requestPointer->arguments = std::move(dataBreakpointInfoArguments);
     return requestPointer;
 }
@@ -619,8 +625,8 @@ std::unique_ptr<Request> RequestManager::ToSetDataBreakpointsRequest(const json_
         if (HasValue(it.value(), "accessType")) {
             dataBreakpoint.accessType = STR_TO_ENUM<DataBreakpointAccessType>(it.value()["accessType"]).value();
         }
-        SET_REQUEST_FIELD(it.value(), "condition", dataBreakpoint.condition)
-        SET_REQUEST_FIELD(it.value(), "hitCondition", dataBreakpoint.hitCondition)
+        SetRequestField(it.value(), "condition", dataBreakpoint.condition);
+        SetRequestField(it.value(), "hitCondition", dataBreakpoint.hitCondition);
         dataBreakpoints.push_back(std::move(dataBreakpoint));
     }
     setDataBreakpointsArguments.breakpoints = std::move(dataBreakpoints);
@@ -637,7 +643,7 @@ bool RequestManager::SetFilter(const json_t &json, std::vector<ExceptionFilterOp
             return false;
         }
         exceptionFilterOptions.filterId = it.value()["filterId"];
-        SET_REQUEST_FIELD(it.value(), "condition", exceptionFilterOptions.condition)
+        SetRequestField(it.value(), "condition", exceptionFilterOptions.condition);
         exVec.push_back(exceptionFilterOptions);
     }
     return true;
@@ -668,7 +674,7 @@ bool RequestManager::SetExceptionOptions(const json_t &json, std::vector<Excepti
                 names.push_back(jt.value()["names"].at(i));
             }
             exceptionPathSegment.names = names;
-            SET_REQUEST_FIELD(jt.value(), "negate", exceptionPathSegment.negate);
+            SetRequestField(jt.value(), "negate", exceptionPathSegment.negate);
             path.push_back(exceptionPathSegment);
         }
         exceptionOptions.path = path;
@@ -678,7 +684,8 @@ bool RequestManager::SetExceptionOptions(const json_t &json, std::vector<Excepti
 
 std::unique_ptr<Request> RequestManager::ToSetExceptionBreakpointsRequest(const json_t &json)
 {
-    std::unique_ptr<SetExceptionBreakpointsRequest> requestPointer = std::make_unique<SetExceptionBreakpointsRequest>();
+    std::unique_ptr<SetExceptionBreakpointsRequest> requestPointer =
+        std::make_unique<SetExceptionBreakpointsRequest>();
     if (!SetRequestBaseInfo(*requestPointer, json)) {
         LOG_ERROR("SetRequestBaseInfo error in SetExceptionBreakpointsRequest, json is:", json);
         return nullptr;
@@ -733,9 +740,9 @@ std::unique_ptr<Request> RequestManager::ToSetInstructionBreakpointsRequest(cons
             continue;
         };
         instructionBreakpoint.instructionReference = it.value()["instructionReference"];
-        SET_REQUEST_FIELD(it.value(), "offset", instructionBreakpoint.offset)
-        SET_REQUEST_FIELD(it.value(), "condition", instructionBreakpoint.condition)
-        SET_REQUEST_FIELD(it.value(), "hitCondition", instructionBreakpoint.hitCondition)
+        SetRequestField(it.value(), "offset", instructionBreakpoint.offset);
+        SetRequestField(it.value(), "condition", instructionBreakpoint.condition);
+        SetRequestField(it.value(), "hitCondition", instructionBreakpoint.hitCondition);
         breakpoints.push_back(std::move(instructionBreakpoint));
     }
     setInstructionBreakpointsArguments.breakpoints = std::move(breakpoints);
@@ -763,14 +770,14 @@ std::unique_ptr<Request> RequestManager::ToSetFunctionBreakpointsRequest(const j
             continue;
         }
         functionBreakpoint.name = it.value()["name"];
-        SET_REQUEST_FIELD(it.value(), "condition", functionBreakpoint.condition)
-        SET_REQUEST_FIELD(it.value(), "hitCondition", functionBreakpoint.hitCondition)
-        SET_REQUEST_FIELD(it.value(), "enabled", functionBreakpoint.enabled)
-        SET_REQUEST_FIELD(it.value(), "id", functionBreakpoint.id)
-        SET_REQUEST_FIELD(it.value(), "sessionData", functionBreakpoint.sessionData)
-        SET_REQUEST_FIELD(it.value(), "hitOnce", functionBreakpoint.hitOnce)
-        SET_REQUEST_FIELD(it.value(), "isRegex", functionBreakpoint.isRegex)
-        SET_REQUEST_FIELD(it.value(), "moduleName", functionBreakpoint.moduleName)
+        SetRequestField(it.value(), "condition", functionBreakpoint.condition);
+        SetRequestField(it.value(), "hitCondition", functionBreakpoint.hitCondition);
+        SetRequestField(it.value(), "enabled", functionBreakpoint.enabled);
+        SetRequestField(it.value(), "id", functionBreakpoint.id);
+        SetRequestField(it.value(), "sessionData", functionBreakpoint.sessionData);
+        SetRequestField(it.value(), "hitOnce", functionBreakpoint.hitOnce);
+        SetRequestField(it.value(), "isRegex", functionBreakpoint.isRegex);
+        SetRequestField(it.value(), "moduleName", functionBreakpoint.moduleName);
         if (HasValue(it.value(), "data")) {
             FunctionBreakpointData functionBreakpointData = SetFunctionBreakpointData(it.value());
             functionBreakpoint.data = std::move(functionBreakpointData);
@@ -849,7 +856,7 @@ std::unique_ptr<Request> RequestManager::ToStepInRequest(const json_t &json)
     }
     StepInArguments stepInArguments;
     stepInArguments.threadId = json["arguments"]["threadId"];
-    SET_REQUEST_FIELD(json["arguments"], "targetId", stepInArguments.targetId)
+    SetRequestField(json["arguments"], "targetId", stepInArguments.targetId);
     if (HasValue(json["arguments"], "granularity")) {
         stepInArguments.granularity = STR_TO_ENUM<SteppingGranularity>(json["arguments"]["granularity"]).value();
     }
@@ -895,17 +902,17 @@ std::unique_ptr<Request> RequestManager::ToStackTraceRequest(const json_t &json)
     }
     StackTraceArguments stackTraceArguments;
     stackTraceArguments.threadId = json["arguments"]["threadId"];
-    SET_REQUEST_FIELD(json["arguments"], "startFrame", stackTraceArguments.startFrame)
-    SET_REQUEST_FIELD(json["arguments"], "levels", stackTraceArguments.levels)
+    SetRequestField(json["arguments"], "startFrame", stackTraceArguments.startFrame);
+    SetRequestField(json["arguments"], "levels", stackTraceArguments.levels);
     if (HasValue(json["arguments"], "format")) {
         StackFrameFormat stackFrameFormat;
-        SET_REQUEST_FIELD(json["arguments"]["format"], "parameters", stackFrameFormat.parameters)
-        SET_REQUEST_FIELD(json["arguments"]["format"], "parameterTypes", stackFrameFormat.parameterTypes)
-        SET_REQUEST_FIELD(json["arguments"]["format"], "parameterNames", stackFrameFormat.parameterNames)
-        SET_REQUEST_FIELD(json["arguments"]["format"], "parameterValues", stackFrameFormat.parameterValues)
-        SET_REQUEST_FIELD(json["arguments"]["format"], "line", stackFrameFormat.line)
-        SET_REQUEST_FIELD(json["arguments"]["format"], "module", stackFrameFormat.module)
-        SET_REQUEST_FIELD(json["arguments"]["format"], "includeAll", stackFrameFormat.includeAll)
+        SetRequestField(json["arguments"]["format"], "parameters", stackFrameFormat.parameters);
+        SetRequestField(json["arguments"]["format"], "parameterTypes", stackFrameFormat.parameterTypes);
+        SetRequestField(json["arguments"]["format"], "parameterNames", stackFrameFormat.parameterNames);
+        SetRequestField(json["arguments"]["format"], "parameterValues", stackFrameFormat.parameterValues);
+        SetRequestField(json["arguments"]["format"], "line", stackFrameFormat.line);
+        SetRequestField(json["arguments"]["format"], "module", stackFrameFormat.module);
+        SetRequestField(json["arguments"]["format"], "includeAll", stackFrameFormat.includeAll);
         stackTraceArguments.format = std::move(stackFrameFormat);
     }
     requestPointer->arguments = std::move(stackTraceArguments);
@@ -1002,10 +1009,10 @@ std::unique_ptr<Request> RequestManager::ToSetVariableRequest(const json_t &json
     setVar.value = json["arguments"]["value"];
     if (HasValue(json["arguments"], "format")) {
         ValueFormat vf;
-        SET_REQUEST_FIELD(json["arguments"]["format"], "hex", vf.hex);
+        SetRequestField(json["arguments"]["format"], "hex", vf.hex);
         setVar.format = std::move(vf);
     }
-    SET_REQUEST_FIELD(json["type"], "type", requestPtr->type);
+    SetRequestField(json["type"], "type", requestPtr->type);
     requestPtr->arguments = setVar;
     return requestPtr;
 }
@@ -1065,9 +1072,9 @@ std::unique_ptr<Request> RequestManager::ToDisassembleRequest(const json_t &json
     DisassembleArguments disassembleArguments;
     disassembleArguments.memoryReference = json["arguments"]["memoryReference"];
     disassembleArguments.instructionCount = json["arguments"]["instructionCount"];
-    SET_REQUEST_FIELD(json["arguments"], "instructionOffset", disassembleArguments.instructionOffset)
-    SET_REQUEST_FIELD(json["arguments"], "offset", disassembleArguments.offset)
-    SET_REQUEST_FIELD(json["arguments"], "resolveSymbols", disassembleArguments.resolveSymbols)
+    SetRequestField(json["arguments"], "instructionOffset", disassembleArguments.instructionOffset);
+    SetRequestField(json["arguments"], "offset", disassembleArguments.offset);
+    SetRequestField(json["arguments"], "resolveSymbols", disassembleArguments.resolveSymbols);
 
     requestPointer->arguments = std::move(disassembleArguments);
     return requestPointer;
@@ -1077,12 +1084,12 @@ VariablesArguments RequestManager::GetVariablesArguments(const json_t &json)
 {
     VariablesArguments variablesArguments;
     variablesArguments.variablesReference = json["arguments"]["variablesReference"];
-    SET_REQUEST_FIELD(json["arguments"], "start", variablesArguments.start)
-    SET_REQUEST_FIELD(json["arguments"], "count", variablesArguments.count)
-    SET_REQUEST_FIELD_EX(json["arguments"], "filter", STR_TO_ENUM<Filter>(json["arguments"]["filter"]),
-        variablesArguments.filter)
-    SET_REQUEST_FIELD_EX(json["arguments"], "format", STR_TO_ENUM<ValueFormat>(json["arguments"]["format"]),
-        variablesArguments.format)
+    SetRequestField(json["arguments"], "start", variablesArguments.start);
+    SetRequestField(json["arguments"], "count", variablesArguments.count);
+    SetConvertedRequestField(json["arguments"], "filter", variablesArguments.filter,
+        [&json]() { return STR_TO_ENUM<Filter>(json["arguments"]["filter"]); });
+    SetConvertedRequestField(json["arguments"], "format", variablesArguments.format,
+        [&json]() { return STR_TO_ENUM<ValueFormat>(json["arguments"]["format"]); });
     return variablesArguments;
 }
 
@@ -1103,16 +1110,16 @@ std::unique_ptr<Request> RequestManager::ToEvaluateRequest(const json_t &json)
     }
     EvaluateArguments arguments;
     arguments.expression = json["arguments"]["expression"];
-    SET_REQUEST_FIELD(json["arguments"], "frameId", arguments.frameId)
+    SetRequestField(json["arguments"], "frameId", arguments.frameId);
     if (json["arguments"].contains("context")) {
         arguments.context = STR_TO_ENUM<Context>(json["arguments"]["context"]);
     }
     if (json["arguments"].contains("format") && json["arguments"]["format"].contains("hex")) {
         ValueFormat format;
-        SET_REQUEST_FIELD(json["arguments"]["format"], "hex", format.hex)
+        SetRequestField(json["arguments"]["format"], "hex", format.hex);
         arguments.format = format;
     }
-    SET_REQUEST_FIELD(json["arguments"], "isViewMore", arguments.isViewMore)
+    SetRequestField(json["arguments"], "isViewMore", arguments.isViewMore);
     requestPointer->arguments = std::move(arguments);
     return requestPointer;
 }
@@ -1185,7 +1192,7 @@ std::unique_ptr<Request> RequestManager::ToReadMemoryRequest(const json_t &json)
     ReadMemoryArguments readMemoryArguments;
     readMemoryArguments.memoryReference = json["arguments"]["memoryReference"];
     readMemoryArguments.count = json["arguments"]["count"];
-    SET_REQUEST_FIELD(json["arguments"], "offset", readMemoryArguments.offset)
+    SetRequestField(json["arguments"], "offset", readMemoryArguments.offset);
 
     requestPointer->arguments = std::move(readMemoryArguments);
     return requestPointer;
@@ -1210,8 +1217,8 @@ std::unique_ptr<Request> RequestManager::ToWriteMemoryRequest(const json_t &json
     WriteMemoryArguments writeMemoryArguments;
     writeMemoryArguments.memoryReference = json["arguments"]["memoryReference"];
     writeMemoryArguments.data = json["arguments"]["data"];
-    SET_REQUEST_FIELD(json["arguments"], "offset", writeMemoryArguments.offset)
-    SET_REQUEST_FIELD(json["arguments"], "allowPartial", writeMemoryArguments.allowPartial)
+    SetRequestField(json["arguments"], "offset", writeMemoryArguments.offset);
+    SetRequestField(json["arguments"], "allowPartial", writeMemoryArguments.allowPartial);
 
     requestPointer->arguments = std::move(writeMemoryArguments);
     return requestPointer;
@@ -1285,9 +1292,9 @@ std::unique_ptr<Request> RequestManager::ToSetExecutionPointRequest(const json_t
     }
 
     SetExecutionPointArguments setExecutionPointArguments;
-    SET_REQUEST_FIELD(json["arguments"], "sourcePath", setExecutionPointArguments.sourcePath)
-    SET_REQUEST_FIELD(json["arguments"], "line", setExecutionPointArguments.line)
-    SET_REQUEST_FIELD(json["arguments"], "instructionReference", setExecutionPointArguments.instructionReference)
+    SetRequestField(json["arguments"], "sourcePath", setExecutionPointArguments.sourcePath);
+    SetRequestField(json["arguments"], "line", setExecutionPointArguments.line);
+    SetRequestField(json["arguments"], "instructionReference", setExecutionPointArguments.instructionReference);
 
     requestPointer->arguments = std::move(setExecutionPointArguments);
     return requestPointer;
@@ -1307,8 +1314,8 @@ std::unique_ptr<Request> RequestManager::ToRecordPointsRequest(const json_t &jso
                 recordPointsArguments.filters.push_back(str);
             }
         }
-        SET_REQUEST_FIELD(json["arguments"], "start", recordPointsArguments.start)
-        SET_REQUEST_FIELD(json["arguments"], "count", recordPointsArguments.count)
+        SetRequestField(json["arguments"], "start", recordPointsArguments.start);
+        SetRequestField(json["arguments"], "count", recordPointsArguments.count);
         requestPointer->arguments = recordPointsArguments;
     }
     return requestPointer;
@@ -1379,13 +1386,13 @@ std::unique_ptr<Request> RequestManager::ToCacheDataConfigRequest(const json_t &
     CacheDataConfigArguments cacheDataConfigArguments;
     cacheDataConfigArguments.startCacheData = json["arguments"]["startCacheData"];
     cacheDataConfigArguments.saveHistoryCache = json["arguments"]["saveHistoryCache"];
-    SET_REQUEST_FIELD(json["arguments"], "threadCount", cacheDataConfigArguments.threadCount)
-    SET_REQUEST_FIELD(json["arguments"], "stackFrameCount", cacheDataConfigArguments.stackFrameCount)
-    SET_REQUEST_FIELD(json["arguments"], "variableChildrenCount", cacheDataConfigArguments.variableChildrenCount)
-    SET_REQUEST_FIELD(json["arguments"], "variableChildrenLayers", cacheDataConfigArguments.variableChildrenLayers)
-    SET_REQUEST_FIELD(json["arguments"], "stackTracePageSize", cacheDataConfigArguments.stackTracePageSize)
-    SET_REQUEST_FIELD(json["arguments"], "variablePageSize", cacheDataConfigArguments.variablePageSize)
-    SET_REQUEST_FIELD(json["arguments"], "scopeType", cacheDataConfigArguments.scopeType)
+    SetRequestField(json["arguments"], "threadCount", cacheDataConfigArguments.threadCount);
+    SetRequestField(json["arguments"], "stackFrameCount", cacheDataConfigArguments.stackFrameCount);
+    SetRequestField(json["arguments"], "variableChildrenCount", cacheDataConfigArguments.variableChildrenCount);
+    SetRequestField(json["arguments"], "variableChildrenLayers", cacheDataConfigArguments.variableChildrenLayers);
+    SetRequestField(json["arguments"], "stackTracePageSize", cacheDataConfigArguments.stackTracePageSize);
+    SetRequestField(json["arguments"], "variablePageSize", cacheDataConfigArguments.variablePageSize);
+    SetRequestField(json["arguments"], "scopeType", cacheDataConfigArguments.scopeType);
     requestPointer->arguments = std::move(cacheDataConfigArguments);
     return requestPointer;
 }
@@ -1403,23 +1410,23 @@ std::unique_ptr<Request> RequestManager::ToRecordMessageRequest(const json_t &js
         return nullptr;
     }
     RecordMessageArguments arguments;
-    for (const auto& it : json["arguments"]["recordPointIds"]) {
+    for (const auto &it : json["arguments"]["recordPointIds"]) {
         arguments.recordPointIds.push_back(it);
     }
-    SET_REQUEST_FIELD(json["arguments"], "requireThread", arguments.requireThread)
-    SET_REQUEST_FIELD(json["arguments"], "requireStackFrame", arguments.requireStackFrame)
-    SET_REQUEST_FIELD(json["arguments"], "requireLocalVariables", arguments.requireLocalVariables)
-    SET_REQUEST_FIELD(json["arguments"], "requireGlobalVariables", arguments.requireGlobalVariables)
-    SET_REQUEST_FIELD(json["arguments"], "requireStaticVariables", arguments.requireStaticVariables)
+    SetRequestField(json["arguments"], "requireThread", arguments.requireThread);
+    SetRequestField(json["arguments"], "requireStackFrame", arguments.requireStackFrame);
+    SetRequestField(json["arguments"], "requireLocalVariables", arguments.requireLocalVariables);
+    SetRequestField(json["arguments"], "requireGlobalVariables", arguments.requireGlobalVariables);
+    SetRequestField(json["arguments"], "requireStaticVariables", arguments.requireStaticVariables);
     if (HasValue(json["arguments"], "monitorVariables") && json["arguments"]["monitorVariables"].is_array()) {
         std::vector<MonitorVariable> monitorVariables;
-        for (auto it  :  json["arguments"]["monitorVariables"]) {
+        for (auto it : json["arguments"]["monitorVariables"]) {
             MonitorVariable monitorVariable;
-            SET_REQUEST_FIELD(it, "id", monitorVariable.id)
-            SET_REQUEST_FIELD(it, "name", monitorVariable.name)
-            SET_REQUEST_FIELD(it, "scopeName", monitorVariable.scopeName)
-            SET_REQUEST_FIELD(it, "type", monitorVariable.type)
-            SET_REQUEST_FIELD(it, "value", monitorVariable.value)
+            SetRequestField(it, "id", monitorVariable.id);
+            SetRequestField(it, "name", monitorVariable.name);
+            SetRequestField(it, "scopeName", monitorVariable.scopeName);
+            SetRequestField(it, "type", monitorVariable.type);
+            SetRequestField(it, "value", monitorVariable.value);
             monitorVariables.push_back(monitorVariable);
         }
         arguments.monitorVariables = std::move(monitorVariables);
@@ -1473,10 +1480,10 @@ std::unique_ptr<Request> RequestManager::ToGetBitmapRequest(const json_t &json)
     }
     GetBitmapArguments arguments;
     arguments.varName = json["arguments"]["varName"];
-    SET_REQUEST_FIELD(json["arguments"], "frameId", arguments.frameId)
-    SET_REQUEST_FIELD(json["arguments"], "varAddress", arguments.varAddress)
-    SET_REQUEST_FIELD(json["arguments"], "varType", arguments.varType)
-    SET_REQUEST_FIELD(json["arguments"], "hasData", arguments.hasData)
+    SetRequestField(json["arguments"], "frameId", arguments.frameId);
+    SetRequestField(json["arguments"], "varAddress", arguments.varAddress);
+    SetRequestField(json["arguments"], "varType", arguments.varType);
+    SetRequestField(json["arguments"], "hasData", arguments.hasData);
     requestPointer->arguments = std::move(arguments);
     return requestPointer;
 }
@@ -1505,7 +1512,7 @@ std::unique_ptr<Request> RequestManager::ToLoadModulesRequest(const json_t &json
     for (auto it = json["arguments"]["uuidList"].begin(); it != json["arguments"]["uuidList"].end(); ++it) {
         uuidList.push_back(it.value());
     }
-    arguments.pathList= std::move(pathList);
+    arguments.pathList = std::move(pathList);
     arguments.uuidList = std::move(uuidList);
     requestPointer->arguments = std::move(arguments);
     return requestPointer;
@@ -1537,7 +1544,7 @@ std::unique_ptr<Request> RequestManager::ToAddSourceMappingRequest(const json_t 
     for (auto it = json["arguments"]["moduleIdList"].begin(); it != json["arguments"]["moduleIdList"].end(); ++it) {
         moduleIdList.push_back(it.value());
     }
-    arguments.targetSourcePathList= std::move(pathList);
+    arguments.targetSourcePathList = std::move(pathList);
     arguments.moduleIdList = std::move(moduleIdList);
     requestPointer->arguments = std::move(arguments);
     return requestPointer;
@@ -1569,7 +1576,7 @@ std::unique_ptr<Request> RequestManager::ToResetSourceMappingRequest(const json_
     for (auto it = json["arguments"]["moduleIdList"].begin(); it != json["arguments"]["moduleIdList"].end(); ++it) {
         moduleIdList.push_back(it.value());
     }
-    arguments.sourceRootDirList= std::move(pathList);
+    arguments.sourceRootDirList = std::move(pathList);
     arguments.moduleIdList = std::move(moduleIdList);
     requestPointer->arguments = std::move(arguments);
     return requestPointer;
@@ -1597,7 +1604,7 @@ std::unique_ptr<Request> RequestManager::ToAddSourceBreakpointRequest(const json
         return nullptr;
     }
     arguments.line = json["arguments"]["line"];
-    SET_REQUEST_FIELD(json["arguments"], "column", arguments.column)
+    SetRequestField(json["arguments"], "column", arguments.column);
     requestPointer->arguments = std::move(arguments);
     return requestPointer;
 }
@@ -1637,7 +1644,7 @@ std::unique_ptr<Request> RequestManager::ToVariableHexViewRequest(const json_t &
             arguments.formats.push_back(it.value());
         }
     }
-    SET_REQUEST_FIELD(json["arguments"], "isArrayView", arguments.isArrayView)
+    SetRequestField(json["arguments"], "isArrayView", arguments.isArrayView);
     requestPointer->arguments = std::move(arguments);
     return requestPointer;
 }

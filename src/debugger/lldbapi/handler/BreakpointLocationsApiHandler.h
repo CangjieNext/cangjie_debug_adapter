@@ -23,7 +23,7 @@ protected:
     std::vector<Protocol::BreakpointLocation> GenBreakpointLocations();
     bool LocationIsValid(const Protocol::BreakpointLocation &location, const std::string& inc = "");
     std::string GetIncOfSBAddress(const lldb::SBAddress& sbAddress);
-    lldb::SBAddress GetSBAddressByLocation(const std::string &filePath, int line, int column = -1);
+    lldb::SBAddress GetSBAddressByLocation(const std::string &filePath, int64_t line, int64_t column = -1);
     Protocol::BreakpointLocation GenBkptLocationOfSBAddress(lldb::SBAddress sbAddress);
 
     const std::set<std::string> stepInInc = { "bl", "blr", "blx", "BL", "BLR", "BLX" };

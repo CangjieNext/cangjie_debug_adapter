@@ -349,7 +349,7 @@ private:
     inline static std::unique_ptr<DapLog> logInstance = nullptr;
 };
 
-inline static const std::string GetCompileFileName(const std::string &fileName)
+inline const std::string GetCompileFileName(const std::string &fileName)
 {
     std::string res;
 #ifdef _WIN32

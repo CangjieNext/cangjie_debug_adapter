@@ -10,11 +10,6 @@
 
 using namespace Dap::Protocol;
 
-#define INSERT_EVENT_JSON(JSON, EVENT_FIELD) \
-    if ((EVENT_FIELD).has_value()) {           \
-        JSON = (EVENT_FIELD).value();          \
-    }
-
 void EventManager::Register()
 {
     std::lock_guard<std::mutex> lock(mutex);
@@ -67,7 +62,7 @@ std::optional<EventManager::EventToJsonFunc> EventManager::GetEventJsonFunc(cons
     return eventFactory[event];
 }
 
-std::optional<json_t> EventManager::ToJson(const Event& event)
+std::optional<json_t> EventManager::ToJson(const Event &event)
 {
     std::string eventString = event.event;
     std::optional<EventManager::EventToJsonFunc> func = GetEventJsonFunc(eventString);
@@ -78,7 +73,7 @@ std::optional<json_t> EventManager::ToJson(const Event& event)
     return func.value()(event);
 }
 
-template<typename EVENT> std::optional<json_t> ToEventJson(const EVENT &e)
+template <typename EVENT> std::optional<json_t> ToEventJson(const EVENT &e)
 {
     (void)e;
     return std::nullopt;
@@ -91,27 +86,27 @@ static void SetEventJsonBaseInfo(const Event &event, json_t &json)
     json["event"] = event.event;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<InitializedEvent>(const InitializedEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<InitializedEvent>(const InitializedEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<StoppedEvent>(const StoppedEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<StoppedEvent>(const StoppedEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
     json_t body;
     StoppedEventBody stoppedEventBody = event.body;
     body["reason"] = ENUM_TO_STR(stoppedEventBody.reason).value();
-    INSERT_EVENT_JSON(body["description"], stoppedEventBody.description)
-    INSERT_EVENT_JSON(body["threadId"], stoppedEventBody.threadId)
-    INSERT_EVENT_JSON(body["preserveFocusHint"], stoppedEventBody.preserveFocusHint)
-    INSERT_EVENT_JSON(body["text"], stoppedEventBody.text)
-    INSERT_EVENT_JSON(body["allThreadsStopped"], stoppedEventBody.allThreadsStopped)
-    INSERT_EVENT_JSON(body["isReverseMode"], stoppedEventBody.isReverseMode)
-    INSERT_EVENT_JSON(body["recordPointId"], stoppedEventBody.recordPointId)
+    SetJsonOptional(body, stoppedEventBody.description, "description");
+    SetJsonOptional(body, stoppedEventBody.threadId, "threadId");
+    SetJsonOptional(body, stoppedEventBody.preserveFocusHint, "preserveFocusHint");
+    SetJsonOptional(body, stoppedEventBody.text, "text");
+    SetJsonOptional(body, stoppedEventBody.allThreadsStopped, "allThreadsStopped");
+    SetJsonOptional(body, stoppedEventBody.isReverseMode, "isReverseMode");
+    SetJsonOptional(body, stoppedEventBody.recordPointId, "recordPointId");
     if (stoppedEventBody.hitBreakpointIds.has_value()) {
         json_t hitBreakpointIds = json_t::array();
         for (auto hitBreakpointId : stoppedEventBody.hitBreakpointIds.value()) {
@@ -123,7 +118,7 @@ template<> std::optional<json_t> Dap::Protocol::ToEventJson<StoppedEvent>(const 
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<ContinuedEvent>(const ContinuedEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<ContinuedEvent>(const ContinuedEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
@@ -137,15 +132,15 @@ template<> std::optional<json_t> Dap::Protocol::ToEventJson<ContinuedEvent>(cons
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<ExitedEvent>(const ExitedEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<ExitedEvent>(const ExitedEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
-    json["body"]["exitCode"]  = event.body.exitCode;
+    json["body"]["exitCode"] = event.body.exitCode;
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<TerminatedEvent>(const TerminatedEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<TerminatedEvent>(const TerminatedEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
@@ -156,44 +151,49 @@ template<> std::optional<json_t> Dap::Protocol::ToEventJson<TerminatedEvent>(con
          * The value is not interpreted by the client and passed unmodified as an
          * attribute '__restart' to the 'launch' and 'attach' requests.
         */
-        if (event.body.value().restart.value().type() == typeid(bool)) {
+        if (event.body.value().restart.has_value() && event.body.value().restart.value().type() == typeid(bool)) {
             json["body"]["restart"] = std::any_cast<bool>(event.body.value().restart.value());
         }
     }
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<BreakpointEvent>(const BreakpointEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<BreakpointEvent>(const BreakpointEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
     json["body"]["reason"] = ENUM_TO_STR(event.body.reason).value();
     json["body"]["breakpoint"]["verified"] = event.body.breakpoint.verified;
-    INSERT_EVENT_JSON(json["body"]["breakpoint"]["id"], event.body.breakpoint.id)
-    INSERT_EVENT_JSON(json["body"]["breakpoint"]["message"], event.body.breakpoint.message)
+    SetJsonOptional(json, event.body.breakpoint.id, "body", "breakpoint", "id");
+    SetJsonOptional(json, event.body.breakpoint.message, "body", "breakpoint", "message");
     if (event.body.breakpoint.source.has_value()) {
         json["body"]["breakpoint"]["source"] = GetTypeJson(event.body.breakpoint.source.value()).value();
     }
-    INSERT_EVENT_JSON(json["body"]["breakpoint"]["line"], event.body.breakpoint.line)
-    INSERT_EVENT_JSON(json["body"]["breakpoint"]["column"], event.body.breakpoint.column)
-    INSERT_EVENT_JSON(json["body"]["breakpoint"]["endLine"], event.body.breakpoint.endLine)
-    INSERT_EVENT_JSON(json["body"]["breakpoint"]["endColumn"], event.body.breakpoint.endColumn)
-    INSERT_EVENT_JSON(json["body"]["breakpoint"]["instructionReference"], event.body.breakpoint.instructionReference)
-    INSERT_EVENT_JSON(json["body"]["breakpoint"]["offset"], event.body.breakpoint.offset)
-    INSERT_EVENT_JSON(json["body"]["breakpoint"]["condition"], event.body.breakpoint.condition)
+    SetJsonOptional(json, event.body.breakpoint.line, "body", "breakpoint", "line");
+    SetJsonOptional(json, event.body.breakpoint.column, "body", "breakpoint", "column");
+    SetJsonOptional(json, event.body.breakpoint.endLine, "body", "breakpoint", "endLine");
+    SetJsonOptional(json, event.body.breakpoint.endColumn, "body", "breakpoint", "endColumn");
+    SetJsonOptional(json, event.body.breakpoint.instructionReference,
+        "body", "breakpoint", "instructionReference");
+    SetJsonOptional(json, event.body.breakpoint.offset, "body", "breakpoint", "offset");
+    SetJsonOptional(json, event.body.breakpoint.condition, "body", "breakpoint", "condition");
     if (event.body.dataBreakpoint.has_value()) {
         json["body"]["dataBreakpoint"]["dataId"] = event.body.dataBreakpoint.value().dataId;
-        INSERT_EVENT_JSON(json["body"]["dataBreakpoint"]["condition"], event.body.dataBreakpoint.value().condition)
-        INSERT_EVENT_JSON(json["body"]["dataBreakpoint"]["accessType"],
-                          ENUM_TO_STR<DataBreakpointAccessType>(event.body.dataBreakpoint.value().accessType.value()))
+        SetJsonOptional(json, event.body.dataBreakpoint.value().condition,
+            "body", "dataBreakpoint", "condition");
+        if (event.body.dataBreakpoint.value().accessType.has_value()) {
+            SetJsonOptional(json,
+                ENUM_TO_STR<DataBreakpointAccessType>(event.body.dataBreakpoint.value().accessType.value()),
+                "body", "dataBreakpoint", "accessType");
+        }
     }
-    INSERT_EVENT_JSON(json["body"]["hitCount"], event.body.hitCount)
-    INSERT_EVENT_JSON(json["body"]["ignoreCount"], event.body.ignoreCount)
-    INSERT_EVENT_JSON(json["body"]["description"], event.body.description)
+    SetJsonOptional(json, event.body.hitCount, "body", "hitCount");
+    SetJsonOptional(json, event.body.ignoreCount, "body", "ignoreCount");
+    SetJsonOptional(json, event.body.description, "body", "description");
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<CapabilitiesEvent>(const CapabilitiesEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<CapabilitiesEvent>(const CapabilitiesEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
@@ -201,22 +201,22 @@ template<> std::optional<json_t> Dap::Protocol::ToEventJson<CapabilitiesEvent>(c
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<OutputEvent>(const OutputEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<OutputEvent>(const OutputEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
     json["body"]["output"] = event.body.output;
-    INSERT_EVENT_JSON(json["body"]["variablesReference"], event.body.variablesReference)
-    INSERT_EVENT_JSON(json["body"]["line"], event.body.line)
-    INSERT_EVENT_JSON(json["body"]["column"], event.body.column)
+    SetJsonOptional(json, event.body.variablesReference, "body", "variablesReference");
+    SetJsonOptional(json, event.body.line, "body", "line");
+    SetJsonOptional(json, event.body.column, "body", "column");
     if (event.body.category.has_value()) {
-        INSERT_EVENT_JSON(json["body"]["category"], ENUM_TO_STR(event.body.category.value()))
+        SetJsonOptional(json, ENUM_TO_STR(event.body.category.value()), "body", "category");
     }
     if (event.body.group.has_value()) {
-        INSERT_EVENT_JSON(json["body"]["group"], ENUM_TO_STR(event.body.group.value()))
+        SetJsonOptional(json, ENUM_TO_STR(event.body.group.value()), "body", "group");
     }
     if (event.body.source.has_value()) {
-        INSERT_EVENT_JSON(json["body"]["source"], GetTypeJson(event.body.source.value()))
+        SetJsonOptional(json, GetTypeJson(event.body.source.value()), "body", "source");
     }
     // json format
     if (event.body.data.has_value()) {
@@ -225,76 +225,76 @@ template<> std::optional<json_t> Dap::Protocol::ToEventJson<OutputEvent>(const O
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<ModuleEvent>(const ModuleEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<ModuleEvent>(const ModuleEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
-    INSERT_EVENT_JSON(json["body"]["reason"], ENUM_TO_STR(event.body.reason));
-    INSERT_EVENT_JSON(json["body"]["module"], GetTypeJson<Module>(event.body.module));
+    SetJsonOptional(json, ENUM_TO_STR(event.body.reason), "body", "reason");
+    SetJsonOptional(json, GetTypeJson<Module>(event.body.module), "body", "module");
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<LoadedSourceEvent>(const LoadedSourceEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<LoadedSourceEvent>(const LoadedSourceEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
-    INSERT_EVENT_JSON(json["body"]["reason"], ENUM_TO_STR(event.body.reason));
-    INSERT_EVENT_JSON(json["body"]["source"], GetTypeJson<Source>(event.body.source));
+    SetJsonOptional(json, ENUM_TO_STR(event.body.reason), "body", "reason");
+    SetJsonOptional(json, GetTypeJson<Source>(event.body.source), "body", "source");
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<ProcessEvent>(const ProcessEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<ProcessEvent>(const ProcessEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
     json["body"]["name"] = event.body.name;
-    INSERT_EVENT_JSON(json["body"]["systemProcessId"], event.body.systemProcessId)
-    INSERT_EVENT_JSON(json["body"]["isLocalProcess"], event.body.isLocalProcess)
+    SetJsonOptional(json, event.body.systemProcessId, "body", "systemProcessId");
+    SetJsonOptional(json, event.body.isLocalProcess, "body", "isLocalProcess");
     if (event.body.startMethod.has_value()) {
-        INSERT_EVENT_JSON(json["body"]["startMethod"], ENUM_TO_STR(event.body.startMethod.value()))
+        SetJsonOptional(json, ENUM_TO_STR(event.body.startMethod.value()), "body", "startMethod");
     }
-    INSERT_EVENT_JSON(json["body"]["pointerSize"], event.body.pointerSize)
+    SetJsonOptional(json, event.body.pointerSize, "body", "pointerSize");
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<ProgressStartEvent>(const ProgressStartEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<ProgressStartEvent>(const ProgressStartEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
     json["body"]["progressId"] = event.body.progressId;
     json["body"]["title"] = event.body.title;
-    INSERT_EVENT_JSON(json["body"]["requestId"], event.body.requestId)
-    INSERT_EVENT_JSON(json["body"]["cancellable"], event.body.cancellable)
-    INSERT_EVENT_JSON(json["body"]["message"], event.body.message)
-    INSERT_EVENT_JSON(json["body"]["percentage"], event.body.percentage)
+    SetJsonOptional(json, event.body.requestId, "body", "requestId");
+    SetJsonOptional(json, event.body.cancellable, "body", "cancellable");
+    SetJsonOptional(json, event.body.message, "body", "message");
+    SetJsonOptional(json, event.body.percentage, "body", "percentage");
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<ProgressUpdateEvent>(const ProgressUpdateEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<ProgressUpdateEvent>(const ProgressUpdateEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
     json["body"]["progressId"] = event.body.progressId;
-    INSERT_EVENT_JSON(json["body"]["message"], event.body.message)
-    INSERT_EVENT_JSON(json["body"]["percentage"], event.body.percentage)
+    SetJsonOptional(json, event.body.message, "body", "message");
+    SetJsonOptional(json, event.body.percentage, "body", "percentage");
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<ProgressEndEvent>(const ProgressEndEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<ProgressEndEvent>(const ProgressEndEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
     json["body"]["progressId"] = event.body.progressId;
-    INSERT_EVENT_JSON(json["body"]["message"], event.body.message)
+    SetJsonOptional(json, event.body.message, "body", "message");
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<InvalidatedEvent>(const InvalidatedEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<InvalidatedEvent>(const InvalidatedEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
-    INSERT_EVENT_JSON(json["body"]["threadId"], event.body.threadId)
-    INSERT_EVENT_JSON(json["body"]["stackFrameId"], event.body.stackFrameId)
+    SetJsonOptional(json, event.body.threadId, "body", "threadId");
+    SetJsonOptional(json, event.body.stackFrameId, "body", "stackFrameId");
     if (event.body.areas.has_value()) {
         json["body"]["areas"] = json_t::array();
         for (auto area : event.body.areas.value()) {
@@ -304,8 +304,8 @@ template<> std::optional<json_t> Dap::Protocol::ToEventJson<InvalidatedEvent>(co
     return json;
 }
 
-template<> std::optional<json_t>
-Dap::Protocol::ToEventJson<RecordPointsUpdateEvent>(const RecordPointsUpdateEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<RecordPointsUpdateEvent>(
+    const RecordPointsUpdateEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
@@ -327,7 +327,7 @@ Dap::Protocol::ToEventJson<RecordPointsUpdateEvent>(const RecordPointsUpdateEven
             point["dateTimeStamp"] = recordPoint.dateTimeStamp;
             point["timeStamp"] = recordPoint.timeStamp;
             point["type"] = recordPoint.reason;
-            INSERT_EVENT_JSON(point["coroutineId"], recordPoint.coroutineId);
+            SetJsonOptional(point, recordPoint.coroutineId, "coroutineId");
             body["newRecordPoints"].emplace_back(point);
         }
     }
@@ -335,7 +335,7 @@ Dap::Protocol::ToEventJson<RecordPointsUpdateEvent>(const RecordPointsUpdateEven
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<ThreadEvent>(const ThreadEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<ThreadEvent>(const ThreadEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
@@ -344,14 +344,14 @@ template<> std::optional<json_t> Dap::Protocol::ToEventJson<ThreadEvent>(const T
     return json;
 }
 
-template<> std::optional<json_t> Dap::Protocol::ToEventJson<ModulesEvent>(const ModulesEvent &event)
+template <> std::optional<json_t> Dap::Protocol::ToEventJson<ModulesEvent>(const ModulesEvent &event)
 {
     json_t json;
     SetEventJsonBaseInfo(event, json);
     json_t body;
     body["reason"] = event.body.reason;
     body["modules"] = json_t::array();
-    for (const auto &module: event.body.moduleList) {
+    for (const auto &module : event.body.moduleList) {
         body["modules"].emplace_back(GetTypeJson<Module>(module).value());
     }
     json["body"] = body;
@@ -359,92 +359,92 @@ template<> std::optional<json_t> Dap::Protocol::ToEventJson<ModulesEvent>(const 
 }
 
 // EventManager: event to json
-std::optional<json_t> EventManager::ToInitializeJson(const Event& event)
+std::optional<json_t> EventManager::ToInitializeJson(const Event &event)
 {
-    return ToEventJson<InitializedEvent>((InitializedEvent&)event);
+    return ToEventJson<InitializedEvent>((InitializedEvent &)event);
 }
 
-std::optional<json_t> EventManager::ToStoppedJson(const Event& event)
+std::optional<json_t> EventManager::ToStoppedJson(const Event &event)
 {
-    return ToEventJson<StoppedEvent>((StoppedEvent&)event);
+    return ToEventJson<StoppedEvent>((StoppedEvent &)event);
 }
 
-std::optional<json_t> EventManager::ToContinuedJson(const Event& event)
+std::optional<json_t> EventManager::ToContinuedJson(const Event &event)
 {
-    return ToEventJson<ContinuedEvent>((ContinuedEvent&)event);
+    return ToEventJson<ContinuedEvent>((ContinuedEvent &)event);
 }
 
-std::optional<json_t> EventManager::ToExitedJson(const Event& event)
+std::optional<json_t> EventManager::ToExitedJson(const Event &event)
 {
-    return ToEventJson<ExitedEvent>((ExitedEvent&)event);
+    return ToEventJson<ExitedEvent>((ExitedEvent &)event);
 }
 
-std::optional<json_t> EventManager::ToTerminatedJson(const Event& event)
+std::optional<json_t> EventManager::ToTerminatedJson(const Event &event)
 {
-    return ToEventJson<TerminatedEvent>((TerminatedEvent&)event);
+    return ToEventJson<TerminatedEvent>((TerminatedEvent &)event);
 }
 
-std::optional<json_t> EventManager::ToBreakpointJson(const Event& event)
+std::optional<json_t> EventManager::ToBreakpointJson(const Event &event)
 {
-    return ToEventJson<BreakpointEvent>((BreakpointEvent&)event);
+    return ToEventJson<BreakpointEvent>((BreakpointEvent &)event);
 }
 
-std::optional<json_t> EventManager::ToCapabilitiesJson(const Event& event)
+std::optional<json_t> EventManager::ToCapabilitiesJson(const Event &event)
 {
-    return ToEventJson<CapabilitiesEvent>((CapabilitiesEvent&)event);
+    return ToEventJson<CapabilitiesEvent>((CapabilitiesEvent &)event);
 }
 
-std::optional<json_t> EventManager::ToOutputJson(const Event& event)
+std::optional<json_t> EventManager::ToOutputJson(const Event &event)
 {
-    return ToEventJson<OutputEvent>((OutputEvent&)event);
+    return ToEventJson<OutputEvent>((OutputEvent &)event);
 }
 
 std::optional<json_t> EventManager::ToModuleEventJson(const Event &event)
 {
-    return ToEventJson<ModuleEvent>((ModuleEvent&)event);
+    return ToEventJson<ModuleEvent>((ModuleEvent &)event);
 }
 
 std::optional<json_t> EventManager::ToLoadSourceEventJson(const Event &event)
 {
-    return ToEventJson<LoadedSourceEvent>((LoadedSourceEvent&)event);
+    return ToEventJson<LoadedSourceEvent>((LoadedSourceEvent &)event);
 }
 
 std::optional<json_t> EventManager::ToProcessEventJson(const Event &event)
 {
-    return ToEventJson<ProcessEvent>((ProcessEvent&)event);
+    return ToEventJson<ProcessEvent>((ProcessEvent &)event);
 }
 
 std::optional<json_t> EventManager::ToProgressStartEventJson(const Event &event)
 {
-    return ToEventJson<ProgressStartEvent>((ProgressStartEvent&)event);
+    return ToEventJson<ProgressStartEvent>((ProgressStartEvent &)event);
 }
 
 std::optional<json_t> EventManager::ToProgressUpdateEventJson(const Event &event)
 {
-    return ToEventJson<ProgressUpdateEvent>((ProgressUpdateEvent&)event);
+    return ToEventJson<ProgressUpdateEvent>((ProgressUpdateEvent &)event);
 }
 
 std::optional<json_t> EventManager::ToProgressEndEventJson(const Event &event)
 {
-    return ToEventJson<ProgressEndEvent>((ProgressEndEvent&)event);
+    return ToEventJson<ProgressEndEvent>((ProgressEndEvent &)event);
 }
 
 std::optional<json_t> EventManager::ToInvalidatedEventJson(const Event &event)
 {
-    return ToEventJson<InvalidatedEvent>((InvalidatedEvent&)event);
+    return ToEventJson<InvalidatedEvent>((InvalidatedEvent &)event);
 }
 
 std::optional<json_t> EventManager::ToRecordPointsUpdateEventJson(const Event &event)
 {
-    return ToEventJson<RecordPointsUpdateEvent>((RecordPointsUpdateEvent&)event);
+    return ToEventJson<RecordPointsUpdateEvent>((RecordPointsUpdateEvent &)event);
 }
 
 std::optional<json_t> EventManager::ToThreadEventJson(const Event &event)
 {
-    return ToEventJson<ThreadEvent>((ThreadEvent&)event);
+    return ToEventJson<ThreadEvent>((ThreadEvent &)event);
 }
 
 std::optional<json_t> EventManager::ToModulesEventJson(const Event &event)
 {
-    return ToEventJson<ModulesEvent>((ModulesEvent&)event);
+    return ToEventJson<ModulesEvent>((ModulesEvent &)event);
 }

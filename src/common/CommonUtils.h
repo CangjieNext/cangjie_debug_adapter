@@ -22,11 +22,11 @@ enum class TrimType : int {
 };
 
 #if defined __thumb__
-    constexpr static int INSTRUCTION_BYTES = 2;
+inline constexpr int INSTRUCTION_BYTES = 2;
 #elif (defined __aarch64__) || (defined __arm__)
-    constexpr static int INSTRUCTION_BYTES = 4;
+inline constexpr int INSTRUCTION_BYTES = 4;
 #else // cpu architecture with variable instruction length, like x86_64
-    constexpr static int INSTRUCTION_BYTES = 8;
+inline constexpr int INSTRUCTION_BYTES = 8;
 #endif
 
 class CommonUtils {
@@ -125,16 +125,16 @@ public:
     // Anonymize sensitive information for harmony
     static std::string AnonymizeRemoteAddress(const std::string &remoteAddress);
 
-    constexpr static int HEX_ADDRESS_WIDTH_64_BITS_CPU = 16;
-    constexpr static int HEX_ADDRESS_WIDTH_32_BITS_CPU = 8;
-    constexpr static int HEX_ADDRESS_WIDTH_16_BITS_CPU = 4;
-    constexpr static int HEX_64_BITS_STRING_LENGTH = 16;
-    constexpr static int HEX_32_BITS_STRING_LENGTH = 8;
-    constexpr static int BASE_16 = 16;
-    constexpr static int MAX_UNSIGNED_CHAR = 255;
-    constexpr static int BUFFER_SIZE = 1024;
-    constexpr static float LIMIT_DAYS = 3.0f;
-    constexpr static int LIMIT_FILE_NUMBERS = 500;
+    static constexpr int HEX_ADDRESS_WIDTH_64_BITS_CPU = 16;
+    static constexpr int HEX_ADDRESS_WIDTH_32_BITS_CPU = 8;
+    static constexpr int HEX_ADDRESS_WIDTH_16_BITS_CPU = 4;
+    static constexpr int HEX_64_BITS_STRING_LENGTH = 16;
+    static constexpr int HEX_32_BITS_STRING_LENGTH = 8;
+    static constexpr int BASE_16 = 16;
+    static constexpr int MAX_UNSIGNED_CHAR = 255;
+    static constexpr int BUFFER_SIZE = 1024;
+    static constexpr float LIMIT_DAYS = 3.0f;
+    static constexpr int LIMIT_FILE_NUMBERS = 500;
 
 private:
     CommonUtils() = default;

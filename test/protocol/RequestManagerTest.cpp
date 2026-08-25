@@ -11,6 +11,42 @@
 
 using namespace Dap::Protocol;
 
+namespace {
+constexpr int kArraySize = 10;
+constexpr int kDefaultSequence = 1;
+constexpr int kSequenceThree = 3;
+constexpr int kSequenceFour = 4;
+constexpr int kSequenceFive = 5;
+constexpr int kSequenceNineteen = 19;
+constexpr int kRequestThreadId = 4004;
+constexpr int kStackTraceThreadId = 4003;
+constexpr int kFirstIndex = 0;
+constexpr int kSecondIndex = 1;
+constexpr int kThirdIndex = 2;
+constexpr int kSingleItemCount = 1;
+constexpr int kTwoItems = 2;
+constexpr int kThreeItems = 3;
+constexpr int kZeroOffset = 0;
+constexpr int kBreakpointColumn = 56;
+constexpr int kBreakpointLine = 23;
+constexpr int kLocationLine = 58;
+constexpr int kLocationColumn = 59;
+constexpr int kLocationEndLine = 60;
+constexpr int kLocationEndColumn = 61;
+constexpr int kFunctionDataId = 2;
+constexpr int kFunctionDataLine = 13;
+constexpr int kDataVariablesReference = 23;
+constexpr int kFrameReference = 1001;
+constexpr int kVariableReference = 1000;
+constexpr int kProcessId = 18916;
+constexpr int kStartFrame = 32;
+constexpr int kStackTraceLevels = 2;
+constexpr int kDeleteBreakpointId = 10;
+constexpr int kTargetId = 3003;
+constexpr int kInstructionCount = 1;
+constexpr int kConfigurationTarget = 3;
+}
+
 class RequestManagerTest : public ProtocolSuite {
     void SetUp() override
     {
@@ -24,15 +60,13 @@ class RequestManagerTest : public ProtocolSuite {
         RequestManager::Instance().UnRegister();
     }
 
-protected:
-    int arraySize = 10;
 };
 
 TEST_F(RequestManagerTest, notRequestTest)
 {
     json_t json;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::RESPONSE).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "initialize ";
     json["arguments"]["adapterID"] = "adapter";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json.dump());
@@ -43,7 +77,7 @@ TEST_F(RequestManagerTest, findFuncError_1)
 {
     json_t json;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "initialize ";
     json["arguments"]["adapterID"] = "adapter";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json.dump());
@@ -55,7 +89,7 @@ TEST_F(RequestManagerTest, parseJsonError_1)
 {
     json_t json;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "initialize";
     json["arguments"]["adapterID"] = "adapter";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json.dump() + "}");
@@ -67,7 +101,7 @@ TEST_F(RequestManagerTest, initializeRequestTest_1)
 {
     json_t json;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "initialize";
     json["arguments"]["adapterID"] = "adapter";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json.dump());
@@ -83,7 +117,7 @@ TEST_F(RequestManagerTest, initializeRequestTest_errorCast_1)
 {
     json_t json;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "configurationDone";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     Dap::Protocol::ConfigurationDoneRequest* configurationDoneRequestPtr = dynamic_cast
@@ -129,7 +163,7 @@ TEST_F(RequestManagerTest, initializeRequestTest_NoArgument)
 {
     json_t json;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "initialize";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json.dump());
     Dap::Protocol::InitializeRequest* ptr = dynamic_cast<Dap::Protocol::InitializeRequest*>(requestPtr.get());
@@ -140,7 +174,7 @@ TEST_F(RequestManagerTest, configurationDoneRequestTest_1)
 {
     json_t json;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "configurationDone";
     json["arguments"] = "configurationDone";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
@@ -160,7 +194,7 @@ TEST_F(RequestManagerTest, configurationDoneRequestTest_baseJsonError_1)
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     EXPECT_TRUE(requestPtr == nullptr);
 
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestSecPtr = RequestManager::Instance().FromJson(json);
     Dap::Protocol::ConfigurationDoneRequest* ptr = dynamic_cast<Dap::Protocol::ConfigurationDoneRequest*>
     (requestSecPtr.get());
@@ -171,7 +205,7 @@ TEST_F(RequestManagerTest, restartRequestTest_1)
 {
     json_t json;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "restart";
     json["arguments"] = "arguments";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
@@ -190,7 +224,7 @@ TEST_F(RequestManagerTest, restartRequestTest_baseJsonError_1)
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     EXPECT_TRUE(requestPtr == nullptr);
 
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestSecPtr = RequestManager::Instance().FromJson(json);
     Dap::Protocol::RestartRequest* ptr = dynamic_cast<Dap::Protocol::RestartRequest*>(requestSecPtr.get());
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
@@ -200,7 +234,7 @@ TEST_F(RequestManagerTest, disconnectRequestTest_1)
 {
     json_t json;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "disconnect";
     json["arguments"]["restart"] = true;
     json["arguments"]["terminateDebuggee"] = true;
@@ -225,7 +259,7 @@ TEST_F(RequestManagerTest, disconnectRequestTest_baseJsonError_1)
     EXPECT_TRUE(requestPtr == nullptr);
 
     json.clear();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
     json["command"] = "disconnect";
     std::unique_ptr<Dap::Protocol::Request> requestSecPtr = RequestManager::Instance().FromJson(json);
@@ -237,7 +271,7 @@ TEST_F(RequestManagerTest, terminateRequestTest_1)
 {
     json_t json;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "terminate";
     json["arguments"]["restart"] = false;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
@@ -259,7 +293,7 @@ TEST_F(RequestManagerTest, terminateRequestTest_baseJsonError_1)
     EXPECT_TRUE(requestPtr == nullptr);
 
     json.clear();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
     json["command"] = "terminate";
     std::unique_ptr<Dap::Protocol::Request> requestSecPtr = RequestManager::Instance().FromJson(json);
@@ -270,7 +304,7 @@ TEST_F(RequestManagerTest, terminateRequestTest_baseJsonError_1)
 void SetJsonOfLaunchRequest(json_t &json)
 {
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "launch";
     json["arguments"]["noDebug"] = true;
     json["arguments"]["name"] = "gdb startup";
@@ -296,7 +330,7 @@ void SetJsonOfLaunchRequest(json_t &json)
     setupCmdJson2["text"] = "setup command 2 text";
     setupCmdJson2["ignoreFailures"] = false;
     json["arguments"]["setupCommands"].push_back(setupCmdJson2);
-    json["arguments"]["__configurationTarget"] = 3;
+    json["arguments"]["__configurationTarget"] = kConfigurationTarget;
     json["arguments"]["__sessionId"] = "1234567890";
     json["arguments"]["launcherPath"] = "C:\\Users\\debugAdapters\\bin\\WindowsDebugLauncher.exe";
     std::string remotePath = "/home/project/Clionhelloworld";
@@ -309,7 +343,7 @@ void SetJsonOfLaunchRequest(json_t &json)
 TEST_F(RequestManagerTest, launchRequestTest_1)
 {
     json_t jsonStrCommands = json_t::array();
-    for (int i = 0; i < arraySize; i++) {
+    for (int i = kFirstIndex; i < kArraySize; i++) {
         jsonStrCommands.push_back("Command");
     }
     json_t json;
@@ -326,24 +360,24 @@ TEST_F(RequestManagerTest, launchRequestTest_1)
     EXPECT_EQ(ptr->arguments.type.value(), "cppdbg");
     EXPECT_EQ(ptr->arguments.request.value(), "launch");
     EXPECT_EQ(ptr->arguments.program.value(), "C:\\test.exe");
-    EXPECT_EQ(ptr->arguments.args->size(), 3);
-    EXPECT_EQ(ptr->arguments.args->at(0), "C:\\mingw\\gdb.exe");
-    EXPECT_EQ(ptr->arguments.args->at(1), "C:\\text.exe");
-    EXPECT_EQ(ptr->arguments.args->at(2), "9995");
+    EXPECT_EQ(ptr->arguments.args->size(), kThreeItems);
+    EXPECT_EQ(ptr->arguments.args->at(kFirstIndex), "C:\\mingw\\gdb.exe");
+    EXPECT_EQ(ptr->arguments.args->at(kSecondIndex), "C:\\text.exe");
+    EXPECT_EQ(ptr->arguments.args->at(kThirdIndex), "9995");
     EXPECT_EQ(ptr->arguments.stopAtEntry.value(), false);
     EXPECT_EQ(ptr->arguments.cwd.value(), "C:\\");
-    EXPECT_EQ(ptr->arguments.env->size(), 1);
+    EXPECT_EQ(ptr->arguments.env->size(), kSingleItemCount);
     EXPECT_EQ(ptr->arguments.env.value().at("PATH"), "C:\\");
     EXPECT_EQ(ptr->arguments.externalConsole.value(), false);
-    EXPECT_EQ(ptr->arguments.setupCommands->size(), 2);
-    EXPECT_EQ(ptr->arguments.setupCommands->at(0).description, "setup command 1");
-    EXPECT_EQ(ptr->arguments.setupCommands->at(0).text, "setup command 1 text");
-    EXPECT_EQ(ptr->arguments.setupCommands->at(0).ignoreFailures, true);
-    EXPECT_EQ(ptr->arguments.setupCommands->at(1).description, "setup command 2");
-    EXPECT_EQ(ptr->arguments.setupCommands->at(1).text, "setup command 2 text");
-    EXPECT_EQ(ptr->arguments.setupCommands->at(1).ignoreFailures, false);
-    EXPECT_EQ(ptr->arguments.__configurationTarget.value(), 3);
-    EXPECT_EQ(ptr->arguments.__sessionId.value(), "1234567890");
+    EXPECT_EQ(ptr->arguments.setupCommands->size(), kTwoItems);
+    EXPECT_EQ(ptr->arguments.setupCommands->at(kFirstIndex).description, "setup command 1");
+    EXPECT_EQ(ptr->arguments.setupCommands->at(kFirstIndex).text, "setup command 1 text");
+    EXPECT_EQ(ptr->arguments.setupCommands->at(kFirstIndex).ignoreFailures, true);
+    EXPECT_EQ(ptr->arguments.setupCommands->at(kSecondIndex).description, "setup command 2");
+    EXPECT_EQ(ptr->arguments.setupCommands->at(kSecondIndex).text, "setup command 2 text");
+    EXPECT_EQ(ptr->arguments.setupCommands->at(kSecondIndex).ignoreFailures, false);
+    EXPECT_EQ(ptr->arguments.configurationTarget.value(), kConfigurationTarget);
+    EXPECT_EQ(ptr->arguments.sessionId.value(), "1234567890");
     EXPECT_EQ(ptr->arguments.sourceFileMap.value().remotePath, "/home/project/Clionhelloworld");
     EXPECT_EQ(ptr->arguments.sourceFileMap.value().localPath, "D:/ide/dap/helloworld");
     EXPECT_EQ(ptr->arguments.debuggeeStarted, true);
@@ -372,7 +406,7 @@ TEST_F(RequestManagerTest, launchRequestTest_NoArgumentsError)
 {
     json_t json;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "launch";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     EXPECT_TRUE(requestPtr == nullptr);
@@ -390,7 +424,7 @@ TEST_F(RequestManagerTest, launchRequestTest_RequestError_brachtest)
 {
     json_t json;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "launch";
     json["arguments"]["args"] = "";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
@@ -412,15 +446,15 @@ void SetJsonOfAttachRequest(json_t &json)
     setupCmdJson2["ignoreFailures"] = false;
     jsonSetupCommands.push_back(setupCmdJson2);
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "attach";
     json["arguments"]["name"] = "gdb startup";
     json["arguments"]["type"] = "cppdbg";
     json["arguments"]["request"] = "attach";
     json["arguments"]["program"] = "C:\\test.exe";
-    json["arguments"]["processId"] = 18916;
+    json["arguments"]["processId"] = kProcessId;
     json["arguments"]["setupCommands"] = jsonSetupCommands;
-    json["arguments"]["__configurationTarget"] = 3;
+    json["arguments"]["__configurationTarget"] = kConfigurationTarget;
     json["arguments"]["__sessionId"] = "1234567890";
     json["arguments"]["showStaticGlobalVars"] = false;
     json["arguments"]["isContainer"] = true;
@@ -432,7 +466,7 @@ void SetJsonOfAttachRequest(json_t &json)
 TEST_F(RequestManagerTest, attachRequestTest)
 {
     json_t jsonStrCommands = json_t::array();
-    for (int i = 0; i < arraySize; i++) {
+    for (int i = kFirstIndex; i < kArraySize; i++) {
         jsonStrCommands.push_back("Command");
     }
     json_t json;
@@ -452,15 +486,15 @@ TEST_F(RequestManagerTest, attachRequestTest)
     EXPECT_EQ(ptr->arguments.request.value(), "attach");
     EXPECT_EQ(ptr->arguments.program.value(), "C:\\test.exe");
     EXPECT_EQ(ptr->arguments.processId.value(), "18916");
-    EXPECT_EQ(ptr->arguments.setupCommands->size(), 2);
-    EXPECT_EQ(ptr->arguments.setupCommands->at(0).description, "setup command 1");
-    EXPECT_EQ(ptr->arguments.setupCommands->at(0).text, "setup command 1 text");
-    EXPECT_EQ(ptr->arguments.setupCommands->at(0).ignoreFailures, true);
-    EXPECT_EQ(ptr->arguments.setupCommands->at(1).description, "setup command 2");
-    EXPECT_EQ(ptr->arguments.setupCommands->at(1).text, "setup command 2 text");
-    EXPECT_EQ(ptr->arguments.setupCommands->at(1).ignoreFailures, false);
-    EXPECT_EQ(ptr->arguments.__configurationTarget.value(), 3);
-    EXPECT_EQ(ptr->arguments.__sessionId.value(), "1234567890");
+    EXPECT_EQ(ptr->arguments.setupCommands->size(), kTwoItems);
+    EXPECT_EQ(ptr->arguments.setupCommands->at(kFirstIndex).description, "setup command 1");
+    EXPECT_EQ(ptr->arguments.setupCommands->at(kFirstIndex).text, "setup command 1 text");
+    EXPECT_EQ(ptr->arguments.setupCommands->at(kFirstIndex).ignoreFailures, true);
+    EXPECT_EQ(ptr->arguments.setupCommands->at(kSecondIndex).description, "setup command 2");
+    EXPECT_EQ(ptr->arguments.setupCommands->at(kSecondIndex).text, "setup command 2 text");
+    EXPECT_EQ(ptr->arguments.setupCommands->at(kSecondIndex).ignoreFailures, false);
+    EXPECT_EQ(ptr->arguments.configurationTarget.value(), kConfigurationTarget);
+    EXPECT_EQ(ptr->arguments.sessionId.value(), "1234567890");
     EXPECT_EQ(ptr->arguments.showStaticGlobalVars.value(), false);
     EXPECT_EQ(ptr->arguments.isContainer.value(), true);
     EXPECT_EQ(ptr->arguments.sourceFileMap.value().remotePath, "/home/project/Clionhelloworld");
@@ -488,7 +522,7 @@ TEST_F(RequestManagerTest, attachRequestTest_RequestError)
     setupCmdJson2["text"] = "setup command 2 text";
     setupCmdJson2["ignoreFailures"] = false;
     json["arguments"]["setupCommands"].push_back(setupCmdJson2);
-    json["arguments"]["__configurationTarget"] = 3;
+    json["arguments"]["__configurationTarget"] = kConfigurationTarget;
     json["arguments"]["__sessionId"] = "1234567890";
     json["arguments"]["showStaticGlobalVars"] = false;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
@@ -499,7 +533,7 @@ TEST_F(RequestManagerTest, attachRequestTest_RequestError)
 TEST_F(RequestManagerTest, attachRequestTest_NoArguments)
 {
     json_t json;
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
     json["command"] = "attach";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
@@ -519,7 +553,7 @@ TEST_F(RequestManagerTest, attachRequestTest_RequestError_brachtest)
 {
     json_t json;
     json["type"] = ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "attach";
     json["arguments"]["processId"] = "";
     json["arguments"]["type"] = "cppdbg";
@@ -533,7 +567,7 @@ TEST_F(RequestManagerTest, setBreakpointsRequestTest_1)
 {
     json_t jsonArray = json_t::array();
     json_t jsonObject = json_t::object();
-    for (int i = 0; i < arraySize; i++) {
+    for (int i = kFirstIndex; i < kArraySize; i++) {
         jsonObject["path"] = getenv("PATH");
         jsonObject["name"] = "fdfdsfd";
         jsonArray.push_back(jsonObject);
@@ -541,17 +575,17 @@ TEST_F(RequestManagerTest, setBreakpointsRequestTest_1)
 
     json_t jsonBreakpoints = json_t::array();
     json_t jsonBreakpoint = json_t::object();
-    for (int i = 0; i < arraySize; i++) {
+    for (int i = kFirstIndex; i < kArraySize; i++) {
         jsonBreakpoint["condition"] = getenv("PATH");
-        jsonBreakpoint["column"] = 56;
-        jsonBreakpoint["line"] = 23;
+        jsonBreakpoint["column"] = kBreakpointColumn;
+        jsonBreakpoint["line"] = kBreakpointLine;
         jsonBreakpoint["hitCondition"] = "none";
         jsonBreakpoint["logMessage"] = "none";
         jsonBreakpoints.push_back(jsonBreakpoint);
     }
 
     json_t jsonLines = json_t::array();
-    for (int i = 0; i < arraySize; i++) {
+    for (int i = kFirstIndex; i < kArraySize; i++) {
         jsonLines.push_back(i);
     }
 
@@ -567,7 +601,7 @@ TEST_F(RequestManagerTest, setBreakpointsRequestTest_1)
 
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "setBreakpoints";
     json["arguments"]["source"]["path"] = getenv("PATH");
     json["arguments"]["source"]["sources"] = jsonArray;
@@ -585,9 +619,9 @@ TEST_F(RequestManagerTest, setBreakpointsRequestTest_1)
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
     EXPECT_EQ(ptr->command, "setBreakpoints");
     EXPECT_EQ(ptr->arguments.sourceModified, false);
-    EXPECT_EQ(ptr->arguments.source.checksums->at(0).algorithm, ChecksumAlgorithmType::SHA256);
-    EXPECT_EQ(ptr->arguments.source.checksums->at(1).algorithm, ChecksumAlgorithmType::SHA1);
-    EXPECT_EQ(ptr->arguments.lines.value().at(1), 1);
+    EXPECT_EQ(ptr->arguments.source.checksums->at(kFirstIndex).algorithm, ChecksumAlgorithmType::SHA256);
+    EXPECT_EQ(ptr->arguments.source.checksums->at(kSecondIndex).algorithm, ChecksumAlgorithmType::SHA1);
+    EXPECT_EQ(ptr->arguments.lines.value().at(kSecondIndex), kSecondIndex);
 }
 
 TEST_F(RequestManagerTest, setBreakpointsRequestTest_baseJsonError_1)
@@ -606,7 +640,7 @@ TEST_F(RequestManagerTest, setBreakpointsRequestTest_noSourceError_1)
 {
     json_t jsonArray = json_t::array();
     json_t jsonObject = json_t::object();
-    for (int i = 0; i < arraySize; i++) {
+    for (int i = kFirstIndex; i < kArraySize; i++) {
         jsonObject["path"] = getenv("PATH");
         jsonObject["name"] = "fdfdsfd";
         jsonArray.push_back(jsonObject);
@@ -614,15 +648,15 @@ TEST_F(RequestManagerTest, setBreakpointsRequestTest_noSourceError_1)
 
     json_t jsonBreakpoints = json_t::array();
     json_t jsonBreakpoint = json_t::object();
-    for (int i = 0; i < arraySize; i++) {
+    for (int i = kFirstIndex; i < kArraySize; i++) {
         jsonBreakpoint["condition"] = getenv("PATH");
-        jsonBreakpoint["column"] = 56;
-        jsonBreakpoint["line"] = 23;
+        jsonBreakpoint["column"] = kBreakpointColumn;
+        jsonBreakpoint["line"] = kBreakpointLine;
         jsonBreakpoints.push_back(jsonBreakpoint);
     }
 
     json_t jsonLines = json_t::array();
-    for (int i = 0; i < arraySize; i++) {
+    for (int i = kFirstIndex; i < kArraySize; i++) {
         jsonLines.push_back(i);
     }
 
@@ -638,7 +672,7 @@ TEST_F(RequestManagerTest, setBreakpointsRequestTest_noSourceError_1)
 
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "setBreakpoints";
     json["arguments"]["breakpoints"] = jsonBreakpoints;
     json["arguments"]["lines"] = jsonLines;
@@ -652,7 +686,7 @@ TEST_F(RequestManagerTest, setBreakpointsRequestTest_breakpointsNoLineError_1)
 {
     json_t jsonArray = json_t::array();
     json_t jsonObject = json_t::object();
-    for (int i = 0; i < arraySize; i++) {
+    for (int i = kFirstIndex; i < kArraySize; i++) {
         jsonObject["path"] = getenv("PATH");
         jsonObject["name"] = "fdfdsfd";
         jsonArray.push_back(jsonObject);
@@ -660,14 +694,14 @@ TEST_F(RequestManagerTest, setBreakpointsRequestTest_breakpointsNoLineError_1)
 
     json_t jsonBreakpoints = json_t::array();
     json_t jsonBreakpoint = json_t::object();
-    for (int i = 0; i < arraySize; i++) {
+    for (int i = kFirstIndex; i < kArraySize; i++) {
         jsonBreakpoint["condition"] = getenv("PATH");
-        jsonBreakpoint["column"] = 56;
+        jsonBreakpoint["column"] = kBreakpointColumn;
         jsonBreakpoints.push_back(jsonBreakpoint);
     }
 
     json_t jsonLines = json_t::array();
-    for (int i = 0; i < arraySize; i++) {
+    for (int i = kFirstIndex; i < kArraySize; i++) {
         jsonLines.push_back(i);
     }
 
@@ -683,7 +717,7 @@ TEST_F(RequestManagerTest, setBreakpointsRequestTest_breakpointsNoLineError_1)
 
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "setBreakpoints";
     json["arguments"]["source"]["path"] = getenv("PATH");
     json["arguments"]["source"]["sources"] = jsonArray;
@@ -701,7 +735,7 @@ TEST_F(RequestManagerTest, setBreakpointsRequestTest_noAlgorithm)
 {
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "setBreakpoints";
     json["arguments"]["source"]["path"] = getenv("PATH");
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
@@ -722,13 +756,13 @@ TEST_F(RequestManagerTest, breakpointLocationsRequestTest_1)
 {
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "breakpointLocations";
     json["arguments"]["source"]["path"] = getenv("PATH");
-    json["arguments"]["line"] = 58;
-    json["arguments"]["column"] = 59;
-    json["arguments"]["endLine"] = 60;
-    json["arguments"]["endColumn"] = 61;
+    json["arguments"]["line"] = kLocationLine;
+    json["arguments"]["column"] = kLocationColumn;
+    json["arguments"]["endLine"] = kLocationEndLine;
+    json["arguments"]["endColumn"] = kLocationEndColumn;
     json["arguments"]["startAddress"] = "0x58";
     json["arguments"]["filterStepinLocation"] = true;
 
@@ -739,10 +773,10 @@ TEST_F(RequestManagerTest, breakpointLocationsRequestTest_1)
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
     EXPECT_EQ(ptr->command, "breakpointLocations");
     EXPECT_EQ(ptr->arguments->source.path, getenv("PATH"));
-    EXPECT_EQ(ptr->arguments->line, 58);
-    EXPECT_EQ(ptr->arguments->column, 59);
-    EXPECT_EQ(ptr->arguments->endLine, 60);
-    EXPECT_EQ(ptr->arguments->endColumn, 61);
+    EXPECT_EQ(ptr->arguments->line, kLocationLine);
+    EXPECT_EQ(ptr->arguments->column, kLocationColumn);
+    EXPECT_EQ(ptr->arguments->endLine, kLocationEndLine);
+    EXPECT_EQ(ptr->arguments->endColumn, kLocationEndColumn);
     EXPECT_EQ(ptr->arguments->startAddress, "0x58");
     EXPECT_EQ(ptr->arguments->filterStepinLocation, true);
 }
@@ -753,7 +787,7 @@ TEST_F(RequestManagerTest, breakpointLocationsRequestTest_baseJsonError_1)
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
     json["command"] = "breakpointLocations";
     json["arguments"]["source"]["path"] = getenv("PATH");
-    json["arguments"]["line"] = 58;
+    json["arguments"]["line"] = kLocationLine;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     EXPECT_TRUE(requestPtr == nullptr);
 }
@@ -762,14 +796,14 @@ TEST_F(RequestManagerTest, breakpointLocationsRequestTest_noSourceError_1)
 {
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "breakpointLocations";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     Dap::Protocol::BreakpointLocationsRequest* ptr = dynamic_cast<Dap::Protocol::BreakpointLocationsRequest*>
     (requestPtr.get());
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
 
-    json["arguments"]["line"] = 58;
+    json["arguments"]["line"] = kLocationLine;
     std::unique_ptr<Dap::Protocol::Request> requestFirstPtr = RequestManager::Instance().FromJson(json);
     EXPECT_TRUE(requestFirstPtr == nullptr);
 
@@ -786,7 +820,7 @@ TEST_F(RequestManagerTest, breakpointLocationsRequestTest_noLineError_1)
 {
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "breakpointLocations";
     json["arguments"]["source"]["path"] = getenv("PATH");
 
@@ -797,15 +831,15 @@ TEST_F(RequestManagerTest, breakpointLocationsRequestTest_noLineError_1)
 static json_t FunctionBreakpointsDataJson()
 {
     json_t data = json_t::object();
-    data["supportsConditionalBreakpoints"]  = true;
-    data["supportsHitConditionalBreakpoints"]  = true;
-    data["supportsLogPoints"]  = true;
-    data["supportsFunctionBreakpoints"]  = true;
-    data["supportsDataBreakpoints"]  = true;
-    data["id"]  = 2;
-    data["verified"]  = true;
-    data["line"]  = 13;
-    data["sessionId"]  = "27da6f02-89ce-4f9c-a108-b66b0d90c8f5";
+    data["supportsConditionalBreakpoints"] = true;
+    data["supportsHitConditionalBreakpoints"] = true;
+    data["supportsLogPoints"] = true;
+    data["supportsFunctionBreakpoints"] = true;
+    data["supportsDataBreakpoints"] = true;
+    data["id"] = kFunctionDataId;
+    data["verified"] = true;
+    data["line"] = kFunctionDataLine;
+    data["sessionId"] = "27da6f02-89ce-4f9c-a108-b66b0d90c8f5";
     return data;
 }
 
@@ -827,7 +861,7 @@ TEST_F(RequestManagerTest, setFunctionBreakpointsRequestTest)
 
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "setFunctionBreakpoints";
     json["arguments"]["breakpoints"] = jsonArray;
 
@@ -838,25 +872,25 @@ TEST_F(RequestManagerTest, setFunctionBreakpointsRequestTest)
     EXPECT_FALSE(ptr == nullptr);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
     EXPECT_EQ(ptr->command, "setFunctionBreakpoints");
-    EXPECT_EQ(ptr->arguments.breakpoints.size(), 1);
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).name, "functionName");
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).condition, "condition");
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).hitCondition, "hitCondition");
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).enabled, true);
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).id, "db73c682-82a3-4d41-b0d4-bf0873705f6d");
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).sessionData, "{}");
-    EXPECT_TRUE(ptr->arguments.breakpoints.at(0).data->supportsConditionalBreakpoints);
-    EXPECT_TRUE(ptr->arguments.breakpoints.at(0).data->supportsHitConditionalBreakpoints);
-    EXPECT_TRUE(ptr->arguments.breakpoints.at(0).data->supportsLogPoints);
-    EXPECT_TRUE(ptr->arguments.breakpoints.at(0).data->supportsFunctionBreakpoints);
-    EXPECT_TRUE(ptr->arguments.breakpoints.at(0).data->supportsDataBreakpoints);
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).data->id, 2);
-    EXPECT_TRUE(ptr->arguments.breakpoints.at(0).data->verified);
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).data->line, 13);
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).data->sessionId, "27da6f02-89ce-4f9c-a108-b66b0d90c8f5");
-    EXPECT_TRUE(ptr->arguments.breakpoints.at(0).isRegex.value());
-    EXPECT_TRUE(ptr->arguments.breakpoints.at(0).hitOnce.value());
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).moduleName, "libjni.so");
+    EXPECT_EQ(ptr->arguments.breakpoints.size(), kSingleItemCount);
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).name, "functionName");
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).condition, "condition");
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).hitCondition, "hitCondition");
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).enabled, true);
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).id, "db73c682-82a3-4d41-b0d4-bf0873705f6d");
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).sessionData, "{}");
+    EXPECT_TRUE(ptr->arguments.breakpoints.at(kFirstIndex).data->supportsConditionalBreakpoints);
+    EXPECT_TRUE(ptr->arguments.breakpoints.at(kFirstIndex).data->supportsHitConditionalBreakpoints);
+    EXPECT_TRUE(ptr->arguments.breakpoints.at(kFirstIndex).data->supportsLogPoints);
+    EXPECT_TRUE(ptr->arguments.breakpoints.at(kFirstIndex).data->supportsFunctionBreakpoints);
+    EXPECT_TRUE(ptr->arguments.breakpoints.at(kFirstIndex).data->supportsDataBreakpoints);
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).data->id, kFunctionDataId);
+    EXPECT_TRUE(ptr->arguments.breakpoints.at(kFirstIndex).data->verified);
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).data->line, kFunctionDataLine);
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).data->sessionId, "27da6f02-89ce-4f9c-a108-b66b0d90c8f5");
+    EXPECT_TRUE(ptr->arguments.breakpoints.at(kFirstIndex).isRegex.value());
+    EXPECT_TRUE(ptr->arguments.breakpoints.at(kFirstIndex).hitOnce.value());
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).moduleName, "libjni.so");
 }
 
 TEST_F(RequestManagerTest, setFunctionBreakpointsRequestTest_baseJsonError)
@@ -874,11 +908,11 @@ TEST_F(RequestManagerTest, setFunctionBreakpointsRequestTest_baseJsonError)
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     EXPECT_TRUE(requestPtr == nullptr);
 
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["arguments"]["breakpoints"] = jsonArray;
     std::unique_ptr<Dap::Protocol::Request> requestSecPtr = RequestManager::Instance().FromJson(json);
     Dap::Protocol::SetFunctionBreakpointsRequest* ptr = dynamic_cast<Dap::Protocol::SetFunctionBreakpointsRequest*>(
-            requestSecPtr.get());
+        requestSecPtr.get());
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
 }
 
@@ -886,19 +920,19 @@ TEST_F(RequestManagerTest, dataBreakpointInfoRequestTest)
 {
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "dataBreakpointInfo";
-    json["arguments"]["variablesReference"] = 23;
+    json["arguments"]["variablesReference"] = kDataVariablesReference;
     json["arguments"]["name"] = "name";
 
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     Dap::Protocol::DataBreakpointInfoRequest* ptr = dynamic_cast<Dap::Protocol::DataBreakpointInfoRequest*>(
-            requestPtr.get());
+        requestPtr.get());
 
     EXPECT_FALSE(ptr == nullptr);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
     EXPECT_EQ(ptr->command, "dataBreakpointInfo");
-    EXPECT_EQ(ptr->arguments.variablesReference, 23);
+    EXPECT_EQ(ptr->arguments.variablesReference, kDataVariablesReference);
     EXPECT_EQ(ptr->arguments.name, "name");
 }
 
@@ -907,7 +941,7 @@ TEST_F(RequestManagerTest, dataBreakpointInfoRequestTest_baseJsonError)
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
     json["command"] = "dataBreakpointInfo";
-    json["arguments"]["variablesReference"] = 23;
+    json["arguments"]["variablesReference"] = kDataVariablesReference;
     json["arguments"]["name"] = "name";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     EXPECT_TRUE(requestPtr == nullptr);
@@ -917,13 +951,13 @@ TEST_F(RequestManagerTest, dataBreakpointInfoRequestTest_noNameError)
 {
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "dataBreakpointInfo";
-    json["arguments"]["variablesReference"] = 23;
+    json["arguments"]["variablesReference"] = kDataVariablesReference;
 
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     (void)dynamic_cast<Dap::Protocol::DataBreakpointInfoRequest*>(
-            requestPtr.get());
+        requestPtr.get());
 
     EXPECT_TRUE(requestPtr == nullptr);
 }
@@ -940,22 +974,22 @@ TEST_F(RequestManagerTest, setDataBreakpointsRequestTest)
 
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "setDataBreakpoints";
     json["arguments"]["breakpoints"] = breakpoints;
 
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     Dap::Protocol::SetDataBreakpointsRequest* ptr = dynamic_cast<Dap::Protocol::SetDataBreakpointsRequest*>(
-            requestPtr.get());
+        requestPtr.get());
 
     EXPECT_FALSE(ptr == nullptr);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
     EXPECT_EQ(ptr->command, "setDataBreakpoints");
-    EXPECT_EQ(ptr->arguments.breakpoints.size(), 1);
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).dataId, "dataId");
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).accessType, DataBreakpointAccessType::READ_WRITE);
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).condition, "condition");
-    EXPECT_EQ(ptr->arguments.breakpoints.at(0).hitCondition, "hitCondition");
+    EXPECT_EQ(ptr->arguments.breakpoints.size(), kSingleItemCount);
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).dataId, "dataId");
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).accessType, DataBreakpointAccessType::READ_WRITE);
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).condition, "condition");
+    EXPECT_EQ(ptr->arguments.breakpoints.at(kFirstIndex).hitCondition, "hitCondition");
 }
 
 TEST_F(RequestManagerTest, setDataBreakpointsRequestTest_baseJsonError)
@@ -978,7 +1012,7 @@ TEST_F(RequestManagerTest, setDataBreakpointsRequestTest_noDataIdError)
 
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "setDataBreakpoints";
     json["arguments"]["breakpoints"] = breakpoints;
 
@@ -990,8 +1024,8 @@ TEST_F(RequestManagerTest, setDataBreakpointsRequestTest_noDataIdError)
 TEST_F(RequestManagerTest, continueRequestTest_1)
 {
     json_t json1;
-    json1["arguments"]["threadId"] = 4004;
-    json1["seq"] = 3;
+    json1["arguments"]["threadId"] = kRequestThreadId;
+    json1["seq"] = kSequenceThree;
     json1["command"] = "continue";
     json1["type"] = "request";
 
@@ -1000,13 +1034,13 @@ TEST_F(RequestManagerTest, continueRequestTest_1)
     EXPECT_FALSE(ptr == nullptr);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
     EXPECT_EQ(ptr->command, "continue");
-    EXPECT_EQ(ptr->arguments.threadId, 4004);
+    EXPECT_EQ(ptr->arguments.threadId, kRequestThreadId);
 }
 
 TEST_F(RequestManagerTest, continueRequestTest_baseJsonError_1)
 {
     json_t json1;
-    json1["arguments"]["threadId"] = 4004;
+    json1["arguments"]["threadId"] = kRequestThreadId;
     json1["command"] = "continue";
     json1["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json1);
@@ -1018,7 +1052,7 @@ TEST_F(RequestManagerTest, continueRequestTest_noThreadIdError_1)
 {
     json_t json1;
     json1["arguments"];
-    json1["seq"] = 3;
+    json1["seq"] = kSequenceThree;
     json1["command"] = "continue";
     json1["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json1);
@@ -1029,8 +1063,8 @@ TEST_F(RequestManagerTest, continueRequestTest_noThreadIdError_1)
 TEST_F(RequestManagerTest, pauseRequestTest_1)
 {
     json_t json1;
-    json1["arguments"]["threadId"] = 4004;
-    json1["seq"] = 3;
+    json1["arguments"]["threadId"] = kRequestThreadId;
+    json1["seq"] = kSequenceThree;
     json1["command"] = "pause";
     json1["type"] = "request";
 
@@ -1039,13 +1073,13 @@ TEST_F(RequestManagerTest, pauseRequestTest_1)
     EXPECT_FALSE(ptr == nullptr);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
     EXPECT_EQ(ptr->command, "pause");
-    EXPECT_EQ(ptr->arguments.threadId, 4004);
+    EXPECT_EQ(ptr->arguments.threadId, kRequestThreadId);
 }
 
 TEST_F(RequestManagerTest, pauseRequestTest_baseJsonError_1)
 {
     json_t json1;
-    json1["arguments"]["threadId"] = 4004;
+    json1["arguments"]["threadId"] = kRequestThreadId;
     json1["command"] = "pause";
     json1["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json1);
@@ -1057,7 +1091,7 @@ TEST_F(RequestManagerTest, pauseRequestTest_noThreadIdError_1)
 {
     json_t json1;
     json1["arguments"];
-    json1["seq"] = 3;
+    json1["seq"] = kSequenceThree;
     json1["command"] = "pause";
     json1["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json1);
@@ -1068,10 +1102,10 @@ TEST_F(RequestManagerTest, pauseRequestTest_noThreadIdError_1)
 TEST_F(RequestManagerTest, NextRequestTest)
 {
     json_t json;
-    json["seq"] = 3;
+    json["seq"] = kSequenceThree;
     json["command"] = "next";
     json["type"] = "request";
-    json["arguments"]["threadId"] = 4004;
+    json["arguments"]["threadId"] = kRequestThreadId;
     json["arguments"]["granularity"] = ENUM_TO_STR(SteppingGranularity::INSTRUCTION).value();
 
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
@@ -1079,20 +1113,20 @@ TEST_F(RequestManagerTest, NextRequestTest)
     EXPECT_FALSE(ptr == nullptr);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
     EXPECT_EQ(ptr->command, "next");
-    EXPECT_EQ(ptr->arguments.threadId, 4004);
+    EXPECT_EQ(ptr->arguments.threadId, kRequestThreadId);
     EXPECT_EQ(ptr->arguments.granularity, SteppingGranularity::INSTRUCTION);
 }
 
 TEST_F(RequestManagerTest, nextRequestTest_baseJsonError_1)
 {
     json_t json;
-    json["arguments"]["threadId"] = 4004;
+    json["arguments"]["threadId"] = kRequestThreadId;
     json["command"] = "next";
     json["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     EXPECT_TRUE(requestPtr == nullptr);
 
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestSecPtr = RequestManager::Instance().FromJson(json);
     Dap::Protocol::NextRequest* ptr = dynamic_cast<Dap::Protocol::NextRequest*>(requestSecPtr.get());
     EXPECT_FALSE(ptr == nullptr);
@@ -1101,7 +1135,7 @@ TEST_F(RequestManagerTest, nextRequestTest_baseJsonError_1)
 TEST_F(RequestManagerTest, NextRequestTest_noArgumentsError)
 {
     json_t json;
-    json["seq"] = 3;
+    json["seq"] = kSequenceThree;
     json["command"] = "next";
     json["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
@@ -1111,11 +1145,11 @@ TEST_F(RequestManagerTest, NextRequestTest_noArgumentsError)
 TEST_F(RequestManagerTest, StepInRequestTest)
 {
     json_t json;
-    json["seq"] = 3;
+    json["seq"] = kSequenceThree;
     json["command"] = "stepIn";
     json["type"] = "request";
-    json["arguments"]["threadId"] = 4004;
-    json["arguments"]["targetId"] = 3003;
+    json["arguments"]["threadId"] = kRequestThreadId;
+    json["arguments"]["targetId"] = kTargetId;
     json["arguments"]["granularity"] = ENUM_TO_STR(SteppingGranularity::INSTRUCTION).value();
 
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
@@ -1123,21 +1157,21 @@ TEST_F(RequestManagerTest, StepInRequestTest)
     EXPECT_FALSE(ptr == nullptr);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
     EXPECT_EQ(ptr->command, "stepIn");
-    EXPECT_EQ(ptr->arguments.threadId, 4004);
-    EXPECT_EQ(ptr->arguments.targetId, 3003);
+    EXPECT_EQ(ptr->arguments.threadId, kRequestThreadId);
+    EXPECT_EQ(ptr->arguments.targetId, kTargetId);
     EXPECT_EQ(ptr->arguments.granularity, SteppingGranularity::INSTRUCTION);
 }
 
 TEST_F(RequestManagerTest, StepInRequestTest_baseJsonError)
 {
     json_t json;
-    json["arguments"]["threadId"] = 4004;
+    json["arguments"]["threadId"] = kRequestThreadId;
     json["command"] = "stepIn";
     json["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     EXPECT_TRUE(requestPtr == nullptr);
 
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestSecPtr = RequestManager::Instance().FromJson(json);
     Dap::Protocol::StepInRequest* ptr = dynamic_cast<Dap::Protocol::StepInRequest*>(requestSecPtr.get());
     EXPECT_FALSE(ptr == nullptr);
@@ -1146,7 +1180,7 @@ TEST_F(RequestManagerTest, StepInRequestTest_baseJsonError)
 TEST_F(RequestManagerTest, StepInRequestTest_noArgumentsError)
 {
     json_t json;
-    json["seq"] = 3;
+    json["seq"] = kSequenceThree;
     json["command"] = "stepIn";
     json["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
@@ -1157,10 +1191,10 @@ TEST_F(RequestManagerTest, StepInRequestTest_noArgumentsError)
 TEST_F(RequestManagerTest, StepOutRequestTest)
 {
     json_t json;
-    json["seq"] = 3;
+    json["seq"] = kSequenceThree;
     json["command"] = "stepOut";
     json["type"] = "request";
-    json["arguments"]["threadId"] = 4004;
+    json["arguments"]["threadId"] = kRequestThreadId;
     json["arguments"]["granularity"] = ENUM_TO_STR(SteppingGranularity::LINE).value();
 
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
@@ -1168,20 +1202,20 @@ TEST_F(RequestManagerTest, StepOutRequestTest)
     EXPECT_FALSE(ptr == nullptr);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
     EXPECT_EQ(ptr->command, "stepOut");
-    EXPECT_EQ(ptr->arguments.threadId, 4004);
+    EXPECT_EQ(ptr->arguments.threadId, kRequestThreadId);
     EXPECT_EQ(ptr->arguments.granularity, SteppingGranularity::LINE);
 }
 
 TEST_F(RequestManagerTest, StepOutRequestTest_baseJsonError)
 {
     json_t json;
-    json["arguments"]["threadId"] = 4004;
+    json["arguments"]["threadId"] = kRequestThreadId;
     json["command"] = "stepOut";
     json["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     EXPECT_TRUE(requestPtr == nullptr);
 
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestSecPtr = RequestManager::Instance().FromJson(json);
     Dap::Protocol::StepOutRequest* ptr = dynamic_cast<Dap::Protocol::StepOutRequest*>(requestSecPtr.get());
     EXPECT_FALSE(ptr == nullptr);
@@ -1190,7 +1224,7 @@ TEST_F(RequestManagerTest, StepOutRequestTest_baseJsonError)
 TEST_F(RequestManagerTest, StepOutRequestTest_noArgumentsError)
 {
     json_t json;
-    json["seq"] = 3;
+    json["seq"] = kSequenceThree;
     json["command"] = "stepOut";
     json["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
@@ -1201,12 +1235,12 @@ TEST_F(RequestManagerTest, StepOutRequestTest_noArgumentsError)
 TEST_F(RequestManagerTest, stackTraceRequestTest)
 {
     json_t json1;
-    json1["seq"] = 3;
+    json1["seq"] = kSequenceThree;
     json1["command"] = REQ_RES_STACK_TRACE;
     json1["type"] = "request";
-    json1["arguments"]["threadId"] = 4003;
-    json1["arguments"]["startFrame"] = 32;
-    json1["arguments"]["levels"] = 2;
+    json1["arguments"]["threadId"] = kStackTraceThreadId;
+    json1["arguments"]["startFrame"] = kStartFrame;
+    json1["arguments"]["levels"] = kStackTraceLevels;
     json_t format;
     format["parameters"] = true;
     format["parameterTypes"] = true;
@@ -1221,9 +1255,9 @@ TEST_F(RequestManagerTest, stackTraceRequestTest)
     EXPECT_FALSE(ptr == nullptr);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
     EXPECT_EQ(ptr->command, REQ_RES_STACK_TRACE);
-    EXPECT_EQ(ptr->arguments.threadId, 4003);
-    EXPECT_EQ(ptr->arguments.levels, 2);
-    EXPECT_EQ(ptr->arguments.startFrame, 32);
+    EXPECT_EQ(ptr->arguments.threadId, kStackTraceThreadId);
+    EXPECT_EQ(ptr->arguments.levels, kStackTraceLevels);
+    EXPECT_EQ(ptr->arguments.startFrame, kStartFrame);
     EXPECT_TRUE(ptr->arguments.format.value().parameters.value());
     EXPECT_TRUE(ptr->arguments.format.value().parameterTypes.value());
     EXPECT_TRUE(ptr->arguments.format.value().parameterNames.value());
@@ -1238,13 +1272,13 @@ TEST_F(RequestManagerTest, stackTraceRequestTest_baseJsonError_1)
     json_t json;
     json["command"] = REQ_RES_STACK_TRACE;
     json["type"] = "request";
-    json["arguments"]["threadId"] = 4003;
-    json["arguments"]["startFrame"] = 32;
-    json["arguments"]["levels"] = 2;
+    json["arguments"]["threadId"] = kStackTraceThreadId;
+    json["arguments"]["startFrame"] = kStartFrame;
+    json["arguments"]["levels"] = kStackTraceLevels;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json.dump());
     EXPECT_TRUE(requestPtr == nullptr);
 
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestSecPtr = RequestManager::Instance().FromJson(json);
     Dap::Protocol::StackTraceRequest* ptr = dynamic_cast<Dap::Protocol::StackTraceRequest*>(requestSecPtr.get());
     EXPECT_FALSE(ptr == nullptr);
@@ -1253,11 +1287,11 @@ TEST_F(RequestManagerTest, stackTraceRequestTest_baseJsonError_1)
 TEST_F(RequestManagerTest, stackTraceRequestTest_noThreadId_1)
 {
     json_t json1;
-    json1["seq"] = 1;
+    json1["seq"] = kDefaultSequence;
     json1["command"] = REQ_RES_STACK_TRACE;
     json1["type"] = "request";
-    json1["arguments"]["startFrame"] = 32;
-    json1["arguments"]["levels"] = 2;
+    json1["arguments"]["startFrame"] = kStartFrame;
+    json1["arguments"]["levels"] = kStackTraceLevels;
     json_t format;
     format["parameters"] = true;
     format["parameterTypes"] = true;
@@ -1274,7 +1308,7 @@ TEST_F(RequestManagerTest, stackTraceRequestTest_noThreadId_1)
 TEST_F(RequestManagerTest, threadsRequestTest)
 {
     json_t json1;
-    json1["seq"] = 3;
+    json1["seq"] = kSequenceThree;
     json1["command"] = REQ_RES_THREADS;
     json1["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json1);
@@ -1296,15 +1330,15 @@ TEST_F(RequestManagerTest, threadsRequestTest_baseJsonError_1)
 TEST_F(RequestManagerTest, scopesRequestTest)
 {
     json_t scopesRequestJson;
-    scopesRequestJson["seq"] = 4;
+    scopesRequestJson["seq"] = kSequenceFour;
     scopesRequestJson["command"] = REQ_RES_SCOPES;
     scopesRequestJson["type"] = "request";
-    scopesRequestJson["arguments"]["frameId"] = 1001;
+    scopesRequestJson["arguments"]["frameId"] = kFrameReference;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(scopesRequestJson.dump());
     auto ptr = dynamic_cast<ScopesRequest*>(requestPtr.get());
     EXPECT_EQ(ptr->command, REQ_RES_SCOPES);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
-    EXPECT_EQ(ptr->arguments.frameId, 1001);
+    EXPECT_EQ(ptr->arguments.frameId, kFrameReference);
 }
 
 TEST_F(RequestManagerTest, scopesRequestTest_baseInfoError)
@@ -1312,7 +1346,7 @@ TEST_F(RequestManagerTest, scopesRequestTest_baseInfoError)
     json_t scopesRequestJson;
     scopesRequestJson["command"] = REQ_RES_SCOPES;
     scopesRequestJson["type"] = "request";
-    scopesRequestJson["arguments"]["frameId"] = 1001;
+    scopesRequestJson["arguments"]["frameId"] = kFrameReference;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(scopesRequestJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
 }
@@ -1320,7 +1354,7 @@ TEST_F(RequestManagerTest, scopesRequestTest_baseInfoError)
 TEST_F(RequestManagerTest, scopesRequestTest_noArgumentsError)
 {
     json_t scopesRequestJson;
-    scopesRequestJson["seq"] = 4;
+    scopesRequestJson["seq"] = kSequenceFour;
     scopesRequestJson["command"] = REQ_RES_SCOPES;
     scopesRequestJson["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(scopesRequestJson.dump());
@@ -1330,15 +1364,15 @@ TEST_F(RequestManagerTest, scopesRequestTest_noArgumentsError)
 TEST_F(RequestManagerTest, variablesRequestTest)
 {
     json_t variablesJson;
-    variablesJson["seq"] = 5;
+    variablesJson["seq"] = kSequenceFive;
     variablesJson["command"] = REQ_RES_VARIABLES;
     variablesJson["type"] = "request";
-    variablesJson["arguments"]["variablesReference"] = 1001;
+    variablesJson["arguments"]["variablesReference"] = kFrameReference;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(variablesJson.dump());
     auto ptr = dynamic_cast<VariablesRequest*>(requestPtr.get());
     EXPECT_EQ(ptr->command, REQ_RES_VARIABLES);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
-    EXPECT_EQ(ptr->arguments.variablesReference, 1001);
+    EXPECT_EQ(ptr->arguments.variablesReference, kFrameReference);
 }
 
 TEST_F(RequestManagerTest, variablesRequestTest_baseInfoError)
@@ -1346,7 +1380,7 @@ TEST_F(RequestManagerTest, variablesRequestTest_baseInfoError)
     json_t variablesJson;
     variablesJson["command"] = REQ_RES_VARIABLES;
     variablesJson["type"] = "request";
-    variablesJson["arguments"]["variablesReference"] = 1001;
+    variablesJson["arguments"]["variablesReference"] = kFrameReference;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(variablesJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
 }
@@ -1354,7 +1388,7 @@ TEST_F(RequestManagerTest, variablesRequestTest_baseInfoError)
 TEST_F(RequestManagerTest, variablesRequestTest_noArgumentsError)
 {
     json_t variablesJson;
-    variablesJson["seq"] = 5;
+    variablesJson["seq"] = kSequenceFive;
     variablesJson["command"] = REQ_RES_VARIABLES;
     variablesJson["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(variablesJson.dump());
@@ -1364,29 +1398,29 @@ TEST_F(RequestManagerTest, variablesRequestTest_noArgumentsError)
 TEST_F(RequestManagerTest, variablesExpandRequestTest)
 {
     json_t variablesJson;
-    variablesJson["seq"] = 5;
+    variablesJson["seq"] = kSequenceFive;
     variablesJson["command"] = REQ_RES_VARIABLES_EXPAND;
     variablesJson["type"] = "request";
-    variablesJson["arguments"]["variablesReference"] = 1001;
+    variablesJson["arguments"]["variablesReference"] = kFrameReference;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(variablesJson.dump());
     auto ptr = dynamic_cast<VariablesExpandRequest*>(requestPtr.get());
     EXPECT_EQ(ptr->command, REQ_RES_VARIABLES_EXPAND);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
-    EXPECT_EQ(ptr->arguments.variablesReference, 1001);
+    EXPECT_EQ(ptr->arguments.variablesReference, kFrameReference);
 }
 
 TEST_F(RequestManagerTest, preVariablesRequestTest)
 {
     json_t variablesJson;
-    variablesJson["seq"] = 5;
+    variablesJson["seq"] = kSequenceFive;
     variablesJson["command"] = REQ_RES_PRE_VARIABLES;
     variablesJson["type"] = "request";
-    variablesJson["arguments"]["variablesReference"] = 1001;
+    variablesJson["arguments"]["variablesReference"] = kFrameReference;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(variablesJson.dump());
     auto ptr = dynamic_cast<PreVariablesRequest*>(requestPtr.get());
     EXPECT_EQ(ptr->command, REQ_RES_PRE_VARIABLES);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
-    EXPECT_EQ(ptr->arguments.variablesReference, 1001);
+    EXPECT_EQ(ptr->arguments.variablesReference, kFrameReference);
 }
 
 TEST_F(RequestManagerTest, preVariablesRequestTest_baseInfoError)
@@ -1394,7 +1428,7 @@ TEST_F(RequestManagerTest, preVariablesRequestTest_baseInfoError)
     json_t variablesJson;
     variablesJson["command"] = REQ_RES_PRE_VARIABLES;
     variablesJson["type"] = "request";
-    variablesJson["arguments"]["variablesReference"] = 1001;
+    variablesJson["arguments"]["variablesReference"] = kFrameReference;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(variablesJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
 }
@@ -1402,7 +1436,7 @@ TEST_F(RequestManagerTest, preVariablesRequestTest_baseInfoError)
 TEST_F(RequestManagerTest, preVariablesRequestTest_noArgumentsError)
 {
     json_t variablesJson;
-    variablesJson["seq"] = 5;
+    variablesJson["seq"] = kSequenceFive;
     variablesJson["command"] = REQ_RES_PRE_VARIABLES;
     variablesJson["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(variablesJson.dump());
@@ -1414,7 +1448,7 @@ TEST_F(RequestManagerTest, variablesExpandRequestTest_baseInfoError)
     json_t variablesJson;
     variablesJson["command"] = REQ_RES_VARIABLES_EXPAND;
     variablesJson["type"] = "request";
-    variablesJson["arguments"]["variablesReference"] = 1001;
+    variablesJson["arguments"]["variablesReference"] = kFrameReference;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(variablesJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
 }
@@ -1422,7 +1456,7 @@ TEST_F(RequestManagerTest, variablesExpandRequestTest_baseInfoError)
 TEST_F(RequestManagerTest, variablesExpandRequestTest_noArgumentsError)
 {
     json_t variablesJson;
-    variablesJson["seq"] = 5;
+    variablesJson["seq"] = kSequenceFive;
     variablesJson["command"] = REQ_RES_VARIABLES_EXPAND;
     variablesJson["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(variablesJson.dump());
@@ -1432,10 +1466,10 @@ TEST_F(RequestManagerTest, variablesExpandRequestTest_noArgumentsError)
 TEST_F(RequestManagerTest, setVariableRequestTest)
 {
     json_t setVariableJson;
-    setVariableJson["seq"] = 1;
+    setVariableJson["seq"] = kDefaultSequence;
     setVariableJson["command"] = REQ_RES_SET_VARIABLE;
     setVariableJson["type"] = "request";
-    setVariableJson["arguments"]["variablesReference"] = 1000;
+    setVariableJson["arguments"]["variablesReference"] = kVariableReference;
     setVariableJson["arguments"]["name"] = "var1";
     setVariableJson["arguments"]["value"] = "100";
     setVariableJson["arguments"]["format"]["hex"] = true;
@@ -1443,7 +1477,7 @@ TEST_F(RequestManagerTest, setVariableRequestTest)
     auto ptr = dynamic_cast<SetVariableRequest*>(requestPtr.get());
     EXPECT_EQ(ptr->command, REQ_RES_SET_VARIABLE);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
-    EXPECT_EQ(ptr->arguments.variablesReference, 1000);
+    EXPECT_EQ(ptr->arguments.variablesReference, kVariableReference);
     EXPECT_EQ(ptr->arguments.name, "var1");
     EXPECT_EQ(ptr->arguments.value, "100");
     EXPECT_TRUE(ptr->arguments.format.value().hex.value());
@@ -1457,8 +1491,8 @@ TEST_F(RequestManagerTest, setVariableRequestTest_baseInfoError)
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(setVariableJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
 
-    setVariableJson["seq"] = 1;
-    setVariableJson["arguments"]["variablesReference"] = 1000;
+    setVariableJson["seq"] = kDefaultSequence;
+    setVariableJson["arguments"]["variablesReference"] = kVariableReference;
     setVariableJson["arguments"]["name"] = "var1";
     setVariableJson["arguments"]["value"] = "100";
     std::unique_ptr<Dap::Protocol::Request> requestSecPtr = RequestManager::Instance().FromJson(setVariableJson);
@@ -1469,10 +1503,10 @@ TEST_F(RequestManagerTest, setVariableRequestTest_baseInfoError)
 TEST_F(RequestManagerTest, setVariableRequestTest_noNameError)
 {
     json_t setVariableJson;
-    setVariableJson["seq"] = 1;
+    setVariableJson["seq"] = kDefaultSequence;
     setVariableJson["command"] = REQ_RES_SET_VARIABLE;
     setVariableJson["type"] = "request";
-    setVariableJson["arguments"]["variablesReference"] = 1000;
+    setVariableJson["arguments"]["variablesReference"] = kVariableReference;
     setVariableJson["arguments"]["value"] = "100";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(setVariableJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
@@ -1482,25 +1516,25 @@ TEST_F(RequestManagerTest, DisassembleRequestTest)
 {
     json_t argumentsJson = json_t::object();
     argumentsJson["memoryReference"] = "0x0000000000405536";
-    argumentsJson["offset"] = 0;
-    argumentsJson["instructionOffset"] = 0;
-    argumentsJson["instructionCount"] = 1;
+    argumentsJson["offset"] = kZeroOffset;
+    argumentsJson["instructionOffset"] = kZeroOffset;
+    argumentsJson["instructionCount"] = kInstructionCount;
     argumentsJson["resolveSymbols"] = true;
 
     json_t disassembleRequestJson;
     disassembleRequestJson["arguments"] = argumentsJson;
     disassembleRequestJson["command"] = REQ_RES_DISASSEMBLE;
     disassembleRequestJson["type"] = "request";
-    disassembleRequestJson["seq"] = 1;
+    disassembleRequestJson["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(
-            disassembleRequestJson.dump());
+        disassembleRequestJson.dump());
     auto ptr = dynamic_cast<DisassembleRequest*>(requestPtr.get());
     EXPECT_EQ(ptr->command, REQ_RES_DISASSEMBLE);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
-    EXPECT_EQ(ptr->seq, 1);
-    EXPECT_EQ(ptr->arguments.instructionCount, 1);
-    EXPECT_EQ(ptr->arguments.instructionOffset, 0);
-    EXPECT_EQ(ptr->arguments.offset, 0);
+    EXPECT_EQ(ptr->seq, kDefaultSequence);
+    EXPECT_EQ(ptr->arguments.instructionCount, kInstructionCount);
+    EXPECT_EQ(ptr->arguments.instructionOffset, kZeroOffset);
+    EXPECT_EQ(ptr->arguments.offset, kZeroOffset);
     EXPECT_EQ(ptr->arguments.memoryReference, "0x0000000000405536");
     EXPECT_TRUE(ptr->arguments.resolveSymbols);
 }
@@ -1511,7 +1545,7 @@ TEST_F(RequestManagerTest, DisassembleRequestTest_baseInfoError)
     disassembleRequestJson["command"] = REQ_RES_DISASSEMBLE;
     disassembleRequestJson["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(
-            disassembleRequestJson.dump());
+        disassembleRequestJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
 }
 
@@ -1520,9 +1554,9 @@ TEST_F(RequestManagerTest, DisassembleRequestTest_noArgumentsError)
     json_t disassembleRequestJson;
     disassembleRequestJson["command"] = REQ_RES_DISASSEMBLE;
     disassembleRequestJson["type"] = "request";
-    disassembleRequestJson["seq"] = 1;
+    disassembleRequestJson["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(
-            disassembleRequestJson.dump());
+        disassembleRequestJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
 }
 
@@ -1530,17 +1564,17 @@ TEST_F(RequestManagerTest, DisassembleRequestTest_noNecessaryArgumentsError)
 {
     json_t argumentsJson = json_t::object();
     argumentsJson["memoryReference"] = "0x0000000000405536";
-    argumentsJson["offset"] = 0;
-    argumentsJson["instructionOffset"] = 0;
+    argumentsJson["offset"] = kZeroOffset;
+    argumentsJson["instructionOffset"] = kZeroOffset;
     argumentsJson["resolveSymbols"] = true;
 
     json_t disassembleRequestJson;
     disassembleRequestJson["arguments"] = argumentsJson;
     disassembleRequestJson["command"] = REQ_RES_DISASSEMBLE;
     disassembleRequestJson["type"] = "request";
-    disassembleRequestJson["seq"] = 1;
+    disassembleRequestJson["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(
-            disassembleRequestJson.dump());
+        disassembleRequestJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
 }
 
@@ -1548,7 +1582,7 @@ TEST_F(RequestManagerTest, EvaluateRequestTest)
 {
     json_t argumentsJson = json_t::object();
     argumentsJson["expression"] = "a == 1";
-    argumentsJson["frameId"] = 1000;
+    argumentsJson["frameId"] = kVariableReference;
     argumentsJson["context"] = "watch";
     argumentsJson["format"]["hex"] = true;
     argumentsJson["isViewMore"] = true;
@@ -1557,15 +1591,15 @@ TEST_F(RequestManagerTest, EvaluateRequestTest)
     requestJson["arguments"] = argumentsJson;
     requestJson["command"] = REQ_RES_EVALUATE;
     requestJson["type"] = "request";
-    requestJson["seq"] = 1;
+    requestJson["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestPtr =
-            RequestManager::Instance().FromJson(requestJson.dump());
+        RequestManager::Instance().FromJson(requestJson.dump());
     auto ptr = dynamic_cast<EvaluateRequest*>(requestPtr.get());
     EXPECT_EQ(ptr->command, REQ_RES_EVALUATE);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
-    EXPECT_EQ(ptr->seq, 1);
+    EXPECT_EQ(ptr->seq, kDefaultSequence);
     EXPECT_TRUE(ptr->arguments.expression == "a == 1");
-    EXPECT_EQ(ptr->arguments.frameId.value(), 1000);
+    EXPECT_EQ(ptr->arguments.frameId.value(), kVariableReference);
     EXPECT_TRUE(ptr->arguments.context.value() == Context::WATCH);
     ValueFormat format = ptr->arguments.format.value();
     EXPECT_TRUE(format.hex.value());
@@ -1575,7 +1609,7 @@ TEST_F(RequestManagerTest, EvaluateRequestTest)
 TEST_F(RequestManagerTest, runInTerminalRequestTest)
 {
     RunInTerminalRequest runInTerminalRequest;
-    runInTerminalRequest.seq = 19;
+    runInTerminalRequest.seq = kSequenceNineteen;
     runInTerminalRequest.arguments.cwd = "cwd";
     runInTerminalRequest.arguments.title = "title";
     runInTerminalRequest.arguments.kind = RunInTerminalKind::INTEGRATED;
@@ -1590,27 +1624,27 @@ TEST_F(RequestManagerTest, runInTerminalRequestTest)
     envPairs.push_back(envPair0);
     runInTerminalRequest.arguments.env = envPairs;
     json_t json = RequestManager::Instance().ToJson(runInTerminalRequest).value();
-    EXPECT_EQ(json["seq"], 19);
+    EXPECT_EQ(json["seq"], kSequenceNineteen);
     EXPECT_EQ(json["type"], REQUEST_NAME);
     EXPECT_EQ(json["command"], REQ_RES_RUN_IN_TERMINAL);
     EXPECT_EQ(json["arguments"]["cwd"], "cwd");
     EXPECT_EQ(json["arguments"]["title"], "title");
     EXPECT_EQ(json["arguments"]["kind"], ENUM_TO_STR(RunInTerminalKind::INTEGRATED));
-    EXPECT_EQ(json["arguments"]["args"].at(0), "args0");
+    EXPECT_EQ(json["arguments"]["args"].at(kFirstIndex), "args0");
     EXPECT_EQ(json["arguments"]["env"]["key0"], "value0");
 }
 
 TEST_F(RequestManagerTest, unInTerminalRequestTest_requestError)
 {
     RunInTerminalRequest runInTerminalRequest;
-    runInTerminalRequest.seq = 19;
+    runInTerminalRequest.seq = kSequenceNineteen;
     runInTerminalRequest.arguments.cwd = "cwd";
     std::vector<std::string> args;
     args.push_back("args0");
     args.push_back("args1");
     runInTerminalRequest.arguments.args = args;
     json_t json = RequestManager::Instance().ToJson(runInTerminalRequest).value();
-    EXPECT_EQ(json["seq"], 19);
+    EXPECT_EQ(json["seq"], kSequenceNineteen);
 }
 
 TEST_F(RequestManagerTest, GetRequestJsonFuncTest)
@@ -1621,9 +1655,9 @@ TEST_F(RequestManagerTest, GetRequestJsonFuncTest)
 TEST_F(RequestManagerTest, NoCommandErrorTest)
 {
     json_t deleteSingleBreakpointRequest;
-    deleteSingleBreakpointRequest["seq"] = 1;
+    deleteSingleBreakpointRequest["seq"] = kDefaultSequence;
     deleteSingleBreakpointRequest["type"] = "request";
-    deleteSingleBreakpointRequest["arguments"]["id"] = 10;
+    deleteSingleBreakpointRequest["arguments"]["id"] = kDeleteBreakpointId;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(
         deleteSingleBreakpointRequest.dump());
     EXPECT_EQ(requestPtr, nullptr);
@@ -1639,9 +1673,10 @@ TEST_F(RequestManagerTest, ToJsonTest)
     EXPECT_EQ(RequestManager::Instance().ToJson(errorRequest), std::nullopt);
 }
 
-TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT) {
+TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT)
+{
     json_t json;
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["type"] = "request";
     json["command"] = "setExceptionBreakpoints";
     // filters
@@ -1666,29 +1701,31 @@ TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT) {
     auto ptr = dynamic_cast<Dap::Protocol::SetExceptionBreakpointsRequest*>(requestPtr.get());
     EXPECT_EQ(ptr->command, REQ_RES_SET_EXCEPTION_BREAKPOINTS);
     EXPECT_EQ(ptr->seq, 1);
-    EXPECT_EQ(ptr->arguments.filters.at(0), "throw");
-    EXPECT_EQ(ptr->arguments.filters.at(1), "catch");
+    EXPECT_EQ(ptr->arguments.filters.at(kFirstIndex), "throw");
+    EXPECT_EQ(ptr->arguments.filters.at(kSecondIndex), "catch");
 }
 
-TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT_RequestInfoError) {
+TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT_RequestInfoError)
+{
     json_t json;
     json["type"] = "request";
     json["command"] = "setExceptionBreakpoints";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     EXPECT_EQ(requestPtr, nullptr);
 
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     // filters
     json["arguments"]["filters"].push_back("throw");
     json["arguments"]["filters"].push_back("catch");
     std::unique_ptr<Dap::Protocol::Request> requestSecPtr = RequestManager::Instance().FromJson(json);
     auto ptr = dynamic_cast<Dap::Protocol::SetExceptionBreakpointsRequest*>(requestSecPtr.get());
-    EXPECT_EQ(ptr->seq, 1);
+    EXPECT_EQ(ptr->seq, kDefaultSequence);
 }
 
-TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT_NoFilters) {
+TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT_NoFilters)
+{
     json_t json;
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["type"] = "request";
     json["command"] = "setExceptionBreakpoints";
     // ExceptionFilterOptions
@@ -1710,9 +1747,10 @@ TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT_NoFilters) {
     EXPECT_EQ(ptr, nullptr);
 }
 
-TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT_NoFilterId) {
+TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT_NoFilterId)
+{
     json_t json;
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["type"] = "request";
     json["command"] = "setExceptionBreakpoints";
     // filters
@@ -1736,9 +1774,10 @@ TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT_NoFilterId) {
     EXPECT_EQ(ptr, nullptr);
 }
 
-TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT_NoBreakMode) {
+TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT_NoBreakMode)
+{
     json_t json;
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["type"] = "request";
     json["command"] = "setExceptionBreakpoints";
     // filters
@@ -1762,9 +1801,10 @@ TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT_NoBreakMode) {
     EXPECT_EQ(ptr, nullptr);
 }
 
-TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT_NoNames) {
+TEST_F(RequestManagerTest, SetExceptionBreakpointsRequestUT_NoNames)
+{
     json_t json;
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["type"] = "request";
     json["command"] = "setExceptionBreakpoints";
     // filters
@@ -1792,21 +1832,21 @@ TEST_F(RequestManagerTest, SourceRequestTest)
 {
     json_t json;
     json["type"] = Dap::Protocol::ENUM_TO_STR(ProtocolMessage::Type::REQUEST).value();
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["command"] = "source";
-    json["arguments"]["sourceReference"] = 1000;
-    json["arguments"]["source"]["sourceReference"] = 1000;
+    json["arguments"]["sourceReference"] = kVariableReference;
+    json["arguments"]["source"]["sourceReference"] = kVariableReference;
     json["arguments"]["source"]["path"] = "path";
 
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json);
     Dap::Protocol::SourceRequest* ptr = dynamic_cast<Dap::Protocol::SourceRequest*>(
-            requestPtr.get());
+        requestPtr.get());
 
     EXPECT_FALSE(ptr == nullptr);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
     EXPECT_EQ(ptr->command, "source");
-    EXPECT_EQ(ptr->arguments.sourceReference, 1000);
-    EXPECT_EQ(ptr->arguments.source->sourceReference, 1000);
+    EXPECT_EQ(ptr->arguments.sourceReference, kVariableReference);
+    EXPECT_EQ(ptr->arguments.source->sourceReference, kVariableReference);
     EXPECT_EQ(ptr->arguments.source->path, "path");
 }
 
@@ -1814,22 +1854,22 @@ TEST_F(RequestManagerTest, ReadMemoryRequestTest)
 {
     json_t argumentsJson = json_t::object();
     argumentsJson["memoryReference"] = "0x0000000000405536";
-    argumentsJson["offset"] = 0;
-    argumentsJson["count"] = 1;
+    argumentsJson["offset"] = kZeroOffset;
+    argumentsJson["count"] = kInstructionCount;
 
     json_t readMemoryRequestJson;
     readMemoryRequestJson["arguments"] = argumentsJson;
     readMemoryRequestJson["command"] = REQ_RES_READ_MEMORY;
     readMemoryRequestJson["type"] = "request";
-    readMemoryRequestJson["seq"] = 1;
+    readMemoryRequestJson["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(
         readMemoryRequestJson.dump());
     auto ptr = dynamic_cast<ReadMemoryRequest*>(requestPtr.get());
     EXPECT_EQ(ptr->command, REQ_RES_READ_MEMORY);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
-    EXPECT_EQ(ptr->seq, 1);
-    EXPECT_EQ(ptr->arguments.count, 1);
-    EXPECT_EQ(ptr->arguments.offset, 0);
+    EXPECT_EQ(ptr->seq, kDefaultSequence);
+    EXPECT_EQ(ptr->arguments.count, kInstructionCount);
+    EXPECT_EQ(ptr->arguments.offset, kZeroOffset);
     EXPECT_EQ(ptr->arguments.memoryReference, "0x0000000000405536");
 }
 
@@ -1848,7 +1888,7 @@ TEST_F(RequestManagerTest, ReadMemoryRequestTest_noArgumentsError)
     json_t readMemoryRequestJson;
     readMemoryRequestJson["command"] = REQ_RES_READ_MEMORY;
     readMemoryRequestJson["type"] = "request";
-    readMemoryRequestJson["seq"] = 1;
+    readMemoryRequestJson["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(
         readMemoryRequestJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
@@ -1858,13 +1898,13 @@ TEST_F(RequestManagerTest, ReadMemoryRequestTest_noNecessaryArgumentsError)
 {
     json_t argumentsJson = json_t::object();
     argumentsJson["memoryReference"] = "0x0000000000405536";
-    argumentsJson["offset"] = 0;
+    argumentsJson["offset"] = kZeroOffset;
 
     json_t disassembleRequestJson;
     disassembleRequestJson["arguments"] = argumentsJson;
     disassembleRequestJson["command"] = REQ_RES_READ_MEMORY;
     disassembleRequestJson["type"] = "request";
-    disassembleRequestJson["seq"] = 1;
+    disassembleRequestJson["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(
         disassembleRequestJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
@@ -1879,29 +1919,29 @@ TEST_F(RequestManagerTest, WriteMemoryRequestTest)
         writeMemoryRequestJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
 
-    writeMemoryRequestJson["seq"] = 1;
+    writeMemoryRequestJson["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestPtr2 = RequestManager::Instance().FromJson(
         writeMemoryRequestJson.dump());
     EXPECT_EQ(requestPtr2, nullptr);
 
     json_t argumentsJson = json_t::object();
     argumentsJson["memoryReference"] = "0x0000000000405536";
-    argumentsJson["offset"] = 0;
+    argumentsJson["offset"] = kZeroOffset;
     writeMemoryRequestJson["arguments"] = argumentsJson;
     std::unique_ptr<Dap::Protocol::Request> requestPtr3 = RequestManager::Instance().FromJson(
-            writeMemoryRequestJson.dump());
+        writeMemoryRequestJson.dump());
     EXPECT_EQ(requestPtr3, nullptr);
 
     argumentsJson["allowPartial"] = true;
     argumentsJson["data"] = "a1";
     writeMemoryRequestJson["arguments"] = argumentsJson;
     std::unique_ptr<Dap::Protocol::Request> requestPtr4 = RequestManager::Instance().FromJson(
-            writeMemoryRequestJson.dump());
+        writeMemoryRequestJson.dump());
     auto ptr = dynamic_cast<WriteMemoryRequest*>(requestPtr4.get());
     EXPECT_EQ(ptr->command, REQ_RES_WRITE_MEMORY);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
-    EXPECT_EQ(ptr->seq, 1);
-    EXPECT_EQ(ptr->arguments.offset, 0);
+    EXPECT_EQ(ptr->seq, kDefaultSequence);
+    EXPECT_EQ(ptr->arguments.offset, kZeroOffset);
     EXPECT_EQ(ptr->arguments.memoryReference, "0x0000000000405536");
     EXPECT_EQ(ptr->arguments.allowPartial, true);
     EXPECT_EQ(ptr->arguments.data, "a1");
@@ -1914,7 +1954,7 @@ TEST_F(RequestManagerTest, SetInstructionBreakpointstest)
     jsonBreakpoint["enable"] = true;
     jsonBreakpoint["id"] = "a8b8d01a-be53-4dd3-b5cc-530414e87a98";
     jsonBreakpoint["instructionReference"] = "0x000000000040177e";
-    jsonBreakpoint["offset"] = 0;
+    jsonBreakpoint["offset"] = kZeroOffset;
     jsonBreakpoint["condition"] = "none";
     jsonBreakpoint["hitCondition"] = "none";
     jsonBreakpoint["canPersist"] = false;
@@ -1924,13 +1964,13 @@ TEST_F(RequestManagerTest, SetInstructionBreakpointstest)
     SetInstructionBreakpointRequestJson["arguments"]["breakpoints"] = jsonBreakpoints;
     SetInstructionBreakpointRequestJson["command"] = REQ_RES_SET_INSTRUCTION_BREAKPOINTS;
     SetInstructionBreakpointRequestJson["type"] = "request";
-    SetInstructionBreakpointRequestJson["seq"] = 1;
+    SetInstructionBreakpointRequestJson["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(
-            SetInstructionBreakpointRequestJson.dump());
+        SetInstructionBreakpointRequestJson.dump());
     auto ptr = dynamic_cast<SetInstructionBreakpointsRequest*>(requestPtr.get());
     EXPECT_EQ(ptr->command, REQ_RES_SET_INSTRUCTION_BREAKPOINTS);
     EXPECT_EQ(ptr->type, ProtocolMessage::Type::REQUEST);
-    EXPECT_EQ(ptr->seq, 1);
+    EXPECT_EQ(ptr->seq, kDefaultSequence);
 }
 
 TEST_F(RequestManagerTest, SetInstructionBreakpoints_baseInfoError)
@@ -1939,7 +1979,7 @@ TEST_F(RequestManagerTest, SetInstructionBreakpoints_baseInfoError)
     SetInstructionBreakpointRequestJson["command"] = REQ_RES_SET_INSTRUCTION_BREAKPOINTS;
     SetInstructionBreakpointRequestJson["type"] = "request";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(
-            SetInstructionBreakpointRequestJson.dump());
+        SetInstructionBreakpointRequestJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
 }
 
@@ -1948,9 +1988,9 @@ TEST_F(RequestManagerTest, SetInstructionBreakpoints_noArgumentsError)
     json_t SetInstructionBreakpointRequestJson;
     SetInstructionBreakpointRequestJson["command"] = REQ_RES_SET_INSTRUCTION_BREAKPOINTS;
     SetInstructionBreakpointRequestJson["type"] = "request";
-    SetInstructionBreakpointRequestJson["seq"] = 1;
+    SetInstructionBreakpointRequestJson["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(
-            SetInstructionBreakpointRequestJson.dump());
+        SetInstructionBreakpointRequestJson.dump());
     EXPECT_EQ(requestPtr, nullptr);
 }
 
@@ -1968,7 +2008,7 @@ TEST_F(RequestManagerTest, GetBitmap_ArgumentsError)
     json_t json;
     json["command"] = REQ_RES_GET_BITMAP;
     json["type"] = "request";
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json.dump());
     EXPECT_EQ(requestPtr, nullptr);
 }
@@ -1978,7 +2018,7 @@ TEST_F(RequestManagerTest, GetBitmap_ArgumentsNoVarName)
     json_t json;
     json["command"] = REQ_RES_GET_BITMAP;
     json["type"] = "request";
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["arguments"] = json_t::object();
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json.dump());
     EXPECT_EQ(requestPtr, nullptr);
@@ -1989,7 +2029,7 @@ TEST_F(RequestManagerTest, GetBitmap_ArgumentsPass)
     json_t json;
     json["command"] = REQ_RES_GET_BITMAP;
     json["type"] = "request";
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["arguments"] = json_t::object();
     json["arguments"]["varName"] = "bitmap";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json.dump());
@@ -2010,7 +2050,7 @@ TEST_F(RequestManagerTest, VariableHexView_ArgumentsError)
     json_t json;
     json["command"] = REQ_RES_VARIABLE_HEX_VIEW;
     json["type"] = "request";
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["arguments"] = json_t::object();
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json.dump());
     EXPECT_EQ(requestPtr, nullptr);
@@ -2021,7 +2061,7 @@ TEST_F(RequestManagerTest, VariableHexView_ArgumentsPass)
     json_t json;
     json["command"] = REQ_RES_VARIABLE_HEX_VIEW;
     json["type"] = "request";
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["arguments"] = json_t::object();
     json["arguments"]["isEnable"] = true;
     json["arguments"]["isArrayView"] = true;
@@ -2034,7 +2074,7 @@ TEST_F(RequestManagerTest, CommandCompletion_ArgumentsError)
     json_t json;
     json["command"] = REQ_RES_COMMAND_COMPLETION;
     json["type"] = "request";
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["arguments"] = json_t::object();
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json.dump());
     EXPECT_EQ(requestPtr, nullptr);
@@ -2045,7 +2085,7 @@ TEST_F(RequestManagerTest, CommandCompletion_ArgumentsPass)
     json_t json;
     json["command"] = REQ_RES_COMMAND_COMPLETION;
     json["type"] = "request";
-    json["seq"] = 1;
+    json["seq"] = kDefaultSequence;
     json["arguments"] = json_t::object();
     json["arguments"]["command"] = "type format";
     std::unique_ptr<Dap::Protocol::Request> requestPtr = RequestManager::Instance().FromJson(json.dump());

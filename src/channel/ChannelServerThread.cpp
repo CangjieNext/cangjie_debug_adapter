@@ -41,7 +41,6 @@ bool ChannelServerThread::Start()
     if (threadPtr == nullptr) {
         return false;
     }
-    threadPtr->detach();
     std::unique_lock<std::mutex> lock(resultMutex);
     resultCv.wait_for(lock, std::chrono::milliseconds(resultTimeout), [&] { return this->isStart; });
     // wait for notification from resultCv
@@ -50,15 +49,17 @@ bool ChannelServerThread::Start()
 
 bool ChannelServerThread::Stop()
 {
-    if (!this->isStart) {
-        return true;
+    if (this->isStart) {
+        if (channelServerPtr == nullptr) {
+            return false;
+        }
+        channelServerPtr->Stop();
+        UvLoopMgr::Instance().LoopStop(this->id);
+        this->isStart = false;
     }
-    if (channelServerPtr == nullptr) {
-        return false;
+    if (threadPtr != nullptr && threadPtr->joinable()) {
+        threadPtr->join();
     }
-    channelServerPtr->Stop();
-    UvLoopMgr::Instance().LoopStop(this->id);
-    this->isStart = false;
     return true;
 }
 

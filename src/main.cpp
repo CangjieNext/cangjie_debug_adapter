@@ -19,10 +19,11 @@ using namespace std;
 using namespace Dap;
 
 // enable dynamic_base compile option
-#ifdef WIN32
-__declspec(dllexport)
-#endif
+#ifdef _WIN32
+__declspec(dllexport) int main(int argc, const char *argv[])
+#else
 int main(int argc, const char *argv[])
+#endif
 {
     std::vector<std::string> args;
     for (int i = 0; i < argc; i++) {

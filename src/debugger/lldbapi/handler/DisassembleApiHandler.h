@@ -33,6 +33,7 @@ private:
     lldb::addr_t startAddress = 0;
     int64_t instructionOffset = 0;
     int64_t forwardCount = 0;
+    uint64_t instructionCount = 0;
     int64_t proLine = 0; // cache line number of last instruction code to adapt line number follow
 };
 };

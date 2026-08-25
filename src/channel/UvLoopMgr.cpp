@@ -40,14 +40,7 @@ uv_loop_t *UvLoopMgr::Loop(const int &id)
 
 bool UvLoopMgr::LoopInit(const int &id)
 {
-    uv_loop_t *loop = Loop(id);
-    if (loop == nullptr) {
-        return false;
-    }
-    if (uv_loop_init(loop) != 0) {
-        LoopRemove(id);
-    }
-    return true;
+    return Loop(id) != nullptr;
 }
 
 void UvLoopMgr::LoopStart(const int &id)
@@ -69,7 +62,6 @@ void UvLoopMgr::LoopStop(const int &id)
         return;
     }
     uv_stop(loop);
-    uv_loop_close(loop);
 }
 
 bool UvLoopMgr::AllLoopStop()
@@ -80,11 +72,13 @@ bool UvLoopMgr::AllLoopStop()
         if (loop == nullptr) {
             continue;
         }
-        if (uv_loop_alive(loop) != 0) {
-            uv_stop(loop);
-            uv_loop_close(loop);
+        if (loopKv.first == defaultId) {
+            continue;
         }
-        free(loop);
+        uv_stop(loop);
+        if (uv_loop_close(loop) == 0) {
+            free(loop);
+        }
     }
     loopMap.clear();
     return false;
@@ -119,7 +113,11 @@ void UvLoopMgr::LoopRemove(const int &id)
         return;
     }
     if (loopMap.at(id) != nullptr) {
-        free(loopMap.at(id));
+        uv_loop_t *loop = loopMap.at(id);
+        uv_stop(loop);
+        if (uv_loop_close(loop) == 0) {
+            free(loop);
+        }
     }
     loopMap.erase(id);
 }

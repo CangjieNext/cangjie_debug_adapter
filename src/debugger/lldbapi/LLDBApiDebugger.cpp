@@ -109,7 +109,7 @@ void LLDBApiDebugger::Configure()
     };
 }
 
-static inline bool CharSummaryProvider(lldb::SBValue value, lldb::SBTypeSummaryOptions, lldb::SBStream &stream)
+static bool CharSummaryProvider(lldb::SBValue value, lldb::SBTypeSummaryOptions, lldb::SBStream &stream)
 {
     if (!value.IsValid()) {
         LOG_INFO("SBValue invalid !");
@@ -133,8 +133,8 @@ static inline bool CharSummaryProvider(lldb::SBValue value, lldb::SBTypeSummaryO
     return true;
 }
 
-static inline bool AddTypeSummary(lldb::SBTypeCategory category, const char *typeName,
-                                  lldb::SBTypeSummary::FormatCallback cb, uint32_t typeOptions, bool regex = false)
+static bool AddTypeSummary(lldb::SBTypeCategory category, const char *typeName,
+                           lldb::SBTypeSummary::FormatCallback cb, uint32_t typeOptions, bool regex = false)
 {
     lldb::SBTypeSummary summary = lldb::SBTypeSummary::CreateWithCallback(cb, typeOptions);
     if (summary.IsValid()) {

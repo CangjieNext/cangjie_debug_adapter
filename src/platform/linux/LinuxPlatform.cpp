@@ -22,9 +22,10 @@ std::string LinuxPlatform::GetShellNameByPID(int pid) const
         return "";
     }
     // e.g. result:  "21905 pts/106  Ss     0:00 /bin/bash"
+    constexpr size_t shellInfoFieldCount = 2;
     for (const auto &result : res) {
         vector<string> split = CommonUtils::SplitString(result, " ");
-        if (split.size() < 2) {
+        if (split.size() < shellInfoFieldCount) {
             continue;
         }
         if (split[0] == pidStr && split[1] != "?") {
