@@ -31,7 +31,7 @@ struct CancelRequest : public Request {
 // Launch
 struct LaunchRequestArguments {
     std::optional<bool> noDebug;
-    std::optional<any> __restart;
+    std::optional<any> restartData;
     // vscode
     std::optional<bool> stopAtEntry;
     std::optional<bool> externalConsole;
@@ -43,8 +43,8 @@ struct LaunchRequestArguments {
     std::optional<std::vector<std::string>> args;
     std::optional<std::map<std::string, std::string>> env;
     std::optional<std::vector<SetupCommand>> setupCommands;
-    std::optional<int> __configurationTarget;
-    std::optional<std::string> __sessionId;
+    std::optional<int> configurationTarget;
+    std::optional<std::string> sessionId;
     // huawei
     std::optional<std::vector<std::string>> scriptCommands;
     std::optional<std::vector<std::string>> startupCommands;
@@ -69,7 +69,7 @@ struct LaunchRequest : public Request {
 
 // Attach
 struct AttachRequestArguments {
-    std::optional<any> __restart;
+    std::optional<any> restartData;
     // vscode
     std::optional<std::string> name;
     std::optional<std::string> type;
@@ -78,8 +78,8 @@ struct AttachRequestArguments {
     std::optional<std::string> processId;
     std::optional<std::vector<SetupCommand>> setupCommands;
     std::optional<std::vector<std::string>> scriptCommands;
-    std::optional<int> __configurationTarget;
-    std::optional<std::string> __sessionId;
+    std::optional<int> configurationTarget;
+    std::optional<std::string> sessionId;
     std::optional<std::string> cwd;
     // huawei
     std::optional<std::string> remotePlatform;

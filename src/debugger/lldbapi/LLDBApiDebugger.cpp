@@ -109,7 +109,7 @@ void LLDBApiDebugger::Configure()
     };
 }
 
-static inline bool CharSummaryProvider(lldb::SBValue value, lldb::SBTypeSummaryOptions, lldb::SBStream &stream)
+static bool CharSummaryProvider(lldb::SBValue value, lldb::SBTypeSummaryOptions, lldb::SBStream &stream)
 {
     if (!value.IsValid()) {
         LOG_INFO("SBValue invalid !");
@@ -133,8 +133,8 @@ static inline bool CharSummaryProvider(lldb::SBValue value, lldb::SBTypeSummaryO
     return true;
 }
 
-static inline bool AddTypeSummary(lldb::SBTypeCategory category, const char *typeName,
-                                  lldb::SBTypeSummary::FormatCallback cb, uint32_t typeOptions, bool regex = false)
+static bool AddTypeSummary(lldb::SBTypeCategory category, const char *typeName,
+                           lldb::SBTypeSummary::FormatCallback cb, uint32_t typeOptions, bool regex = false)
 {
     lldb::SBTypeSummary summary = lldb::SBTypeSummary::CreateWithCallback(cb, typeOptions);
     if (summary.IsValid()) {
@@ -621,11 +621,11 @@ std::string LLDBApiDebugger::GetAddressRange(lldb::SBModule &sbModule)
     SBAddress sbAddress = sbModule.GetObjectFileHeaderAddress();
     const lldb::addr_t loadAddress = sbAddress.GetLoadAddress(sbTarget);
     std::string startAddr = loadAddress != LLDB_INVALID_ADDRESS ?
-            CommonUtils::Dec2HexAddress(loadAddress, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU) : "-";
+            CommonUtils::Dec2HexAddress(loadAddress, CommonUtils::hexAddressWidth64BitsCpu) : "-";
     const lldb::addr_t moduleSize = sbModule.GetAddressByteSize();
     const lldb::addr_t endAddress = loadAddress + moduleSize;
     std::string endAddr = endAddress != LLDB_INVALID_ADDRESS ?
-            CommonUtils::Dec2HexAddress(endAddress, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU) : "-";
+            CommonUtils::Dec2HexAddress(endAddress, CommonUtils::hexAddressWidth64BitsCpu) : "-";
     addressRangeInfo = startAddr + "~" + endAddr;
     return addressRangeInfo;
 }
@@ -641,12 +641,12 @@ std::string LLDBApiDebugger::GetCodeRange(lldb::SBModule &sbModule)
         if (section.GetPermissions() == (ePermissionsExecutable | ePermissionsReadable)) {
             lldb::addr_t loadAddr = section.GetLoadAddress(sbTarget);
             std::string startAddr = loadAddress != LLDB_INVALID_ADDRESS ?
-                        CommonUtils::Dec2HexAddress(loadAddr, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU) : "-";
+                        CommonUtils::Dec2HexAddress(loadAddr, CommonUtils::hexAddressWidth64BitsCpu) : "-";
             codeRangeInfo += startAddr;
             codeRangeInfo += "~";
             loadAddr += section.GetByteSize();
             std::string endAddr = loadAddress != LLDB_INVALID_ADDRESS ?
-                        CommonUtils::Dec2HexAddress(loadAddr, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU) : "-";
+                        CommonUtils::Dec2HexAddress(loadAddr, CommonUtils::hexAddressWidth64BitsCpu) : "-";
             codeRangeInfo += endAddr;
         }
     }
@@ -684,7 +684,7 @@ void LLDBApiDebugger::GetModuleInfo(SBModule &sbModule, Module &module)
     SBAddress sbAddress = sbModule.GetObjectFileHeaderAddress();
     const lldb::addr_t loadAddress = sbAddress.GetLoadAddress(sbTarget);
     module.loadedAddress = loadAddress != LLDB_INVALID_ADDRESS ?
-            CommonUtils::Dec2HexAddress(loadAddress, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU) : "-";
+            CommonUtils::Dec2HexAddress(loadAddress, CommonUtils::hexAddressWidth64BitsCpu) : "-";
 }
 
 void LLDBApiDebugger::GetModuleVersion(SBModule &sbModule, Module &module)
@@ -1115,7 +1115,7 @@ UniqueResponsePtr LLDBApiDebugger::ReadMemory(UniqueRequestPtr request)
         std::unique_ptr<ReadMemoryResponse> responsePointer = std::make_unique<ReadMemoryResponse>();
         InitResponse(*responsePointer,  request->seq, true);
         responsePointer->address = CommonUtils::Dec2HexAddress(address + offset,
-                                                               CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU);
+                                                               CommonUtils::hexAddressWidth64BitsCpu);
         responsePointer->unreadableBytes = count - bytesRead;
         responsePointer->data = CommonUtils::Base64Encode(buf.get(), bytesRead);
         return responsePointer;
@@ -1233,7 +1233,7 @@ UniqueResponsePtr LLDBApiDebugger::SetExecutionPoint(UniqueRequestPtr request)
     string result;
     if (reqPtr->arguments.instructionReference.has_value()) {
         if (!CommonUtils::IsValidHexInteger(reqPtr->arguments.instructionReference.value(),
-                                            CommonUtils::HEX_64_BITS_STRING_LENGTH)) {
+                                            CommonUtils::hex64BitsStringLength)) {
             responsePointer->message = "ERROR: Invalid instruction reference.";
             return responsePointer;
         }

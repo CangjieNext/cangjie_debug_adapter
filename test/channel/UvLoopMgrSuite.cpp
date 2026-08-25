@@ -10,6 +10,10 @@
 using namespace ::testing;
 using namespace Dap;
 
+namespace {
+constexpr int INVALID_LOOP_ID = -2;
+}
+
 class UvLoopMgrSuite : public ChannelBaseSuite {
 protected:
     void SetUp() override {}
@@ -19,7 +23,7 @@ protected:
 
 TEST_F(UvLoopMgrSuite, loop_start)
 {
-    int loopId = -2;
+    int loopId = INVALID_LOOP_ID;
     EXPECT_FALSE(UvLoopMgr::Instance().IsLoopStart(loopId));
     loopId = -1;
     EXPECT_TRUE(UvLoopMgr::Instance().IsLoopStart(loopId));
@@ -27,7 +31,7 @@ TEST_F(UvLoopMgrSuite, loop_start)
 
 TEST_F(UvLoopMgrSuite, loop_exit)
 {
-    int loopId = -2;
+    int loopId = INVALID_LOOP_ID;
     EXPECT_FALSE(UvLoopMgr::Instance().IsLoopExist(loopId));
     loopId = -1;
     EXPECT_TRUE(UvLoopMgr::Instance().IsLoopExist(loopId));
@@ -37,7 +41,7 @@ TEST_F(UvLoopMgrSuite, loop_remove)
 {
     int loopId = -1;
     UvLoopMgr::Instance().LoopRemove(loopId);
-    loopId = -2;
+    loopId = INVALID_LOOP_ID;
     UvLoopMgr::Instance().LoopRemove(loopId);
     loopId = 0;
     (void)UvLoopMgr::Instance().Loop(loopId);

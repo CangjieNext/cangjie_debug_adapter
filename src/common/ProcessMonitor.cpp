@@ -31,10 +31,7 @@ ProcessMonitor::~ProcessMonitor()
 void ProcessMonitor::ThreadFunc(ProcessMonitor &monitor)
 {
     static int timeSpanMillis = 500;
-    while (true) {
-        if (!monitor.isStart) {
-            break;
-        }
+    while (monitor.isStart) {
         if (monitor.HandlerCount() > 0) {
             monitor.CheckProcess();
         }

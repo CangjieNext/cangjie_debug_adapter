@@ -5,6 +5,10 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 #include "SetDataBreakpointsApiHandler.h"
+#include <algorithm>
+#include <cctype>
+#include <limits>
+#include <stdexcept>
 #include <thread>
 #include "CommonUtils.h"
 #include "DapLog.h"
@@ -22,7 +26,7 @@ UniqueResponsePtr SetDataBreakpointsApiHandler::HandleRequest(std::unique_ptr<Re
     std::string error;
     if (reqPtr == nullptr) {
         error = "ERROR: Invalid parameter, SetDataBreakpointsRequest Pointer conversion failed.";
-        return debugger->CompleteFailureResponse(std::make_unique<SetBreakpointsResponse>(),
+        return debugger->CompleteFailureResponse(std::make_unique<SetDataBreakpointsResponse>(),
                                                  error, currentRequest->seq);
     }
     RemoveBreakpoints();
@@ -32,7 +36,6 @@ UniqueResponsePtr SetDataBreakpointsApiHandler::HandleRequest(std::unique_ptr<Re
 
 void SetDataBreakpointsApiHandler::AddBreakpoints(const std::vector<DataBreakpoint> &dataBreakpoints)
 {
-    SBTarget sbTarget = debugger->GetSbTarget();
     DataBreakpointSet& dataBreakpointSet = debugger->GetDataBreakpoints();
     for (const auto &dataBreakpoint : dataBreakpoints) {
         std::string variableAddressAndSize = dataBreakpoint.dataId;
@@ -41,63 +44,144 @@ void SetDataBreakpointsApiHandler::AddBreakpoints(const std::vector<DataBreakpoi
             GenerateFailureBreakpointResult(currentBreak, "DataId is empty.");
             continue;
         }
-        try {
-            std::string condition = dataBreakpoint.condition.has_value() ? dataBreakpoint.condition.value() : "";
-#ifdef _DARWIN
-            if (debugger->GetDebuggeeLanguageType() == DebuggeeLanguageType::CANGJIE && !condition.empty()) {
-                Breakpoint currentBreak;
-                currentBreak.verified = false;
-                currentBreak.id = invalidBreakpointId;
-                currentBreak.message = "Conditional breakpoints are not supported.";
-                breakpointResult.emplace_back(currentBreak);
-                continue;
-            }
-#else
-            if (debugger->GetOption().OhosCangjieDebug() && !condition.empty()) {
-                Breakpoint currentBreak;
-                currentBreak.verified = false;
-                currentBreak.id = invalidBreakpointId;
-                currentBreak.message = "Conditional breakpoints are not supported.";
-                breakpointResult.emplace_back(currentBreak);
-                continue;
-            }
-#endif
-            bool read = dataBreakpoint.accessType.value() != DataBreakpointAccessType::WRITE;
-            bool write = dataBreakpoint.accessType.value() != DataBreakpointAccessType::READ;
-            vector<string> addrAndSize = CommonUtils::SplitString(variableAddressAndSize, "/");
-            if (addrAndSize.size() < 2) {
-                GenerateFailureBreakpointResult(currentBreak, "Invalid dataId format, expected 'address/size'.");
-                continue;
-            }
-            addr_t address = stoull(addrAndSize[0]);
-            size_t size = stoull(addrAndSize[1]);
-            SBError sbError = SBError();
-            SBWatchpoint sbBreakpoint = sbTarget.WatchAddress(address, size, read, write, sbError);
-            int hitCount = 0;
-            if (!condition.empty()) {
-                sbBreakpoint.SetCondition(condition.data());
-            }
-            if (dataBreakpoint.hitCondition.has_value()) {
-                CommonUtils::StringToInt(dataBreakpoint.hitCondition.value(), hitCount);
-            }
-            if (hitCount > 0) {
-                sbBreakpoint.SetIgnoreCount(hitCount - 1);
-            }
-            if (sbError.Fail()) {
-                GenerateFailureBreakpointResult(currentBreak, sbError.GetCString());
-                continue;
-            }
-            currentBreak.id = sbBreakpoint.GetID();
-            currentBreak.verified = sbBreakpoint.IsValid();
-        } catch (exception &e) {
-            currentBreak.verified = false;
-            LOG_INFO("An error has occurred, such as dataID resolution failure.");
+        std::string condition = dataBreakpoint.condition.value_or("");
+        if (IsConditionUnsupported(condition)) {
+            continue;
         }
-        if (currentBreak.id.has_value()) {
-            dataBreakpointSet.AddDataBreakPoint(currentBreak.id.value());
+        lldb::addr_t address = 0;
+        size_t size = 0;
+        if (!ParseDataId(variableAddressAndSize, address, size)) {
+            continue;
         }
+        lldb::watch_id_t watchpointId = CreateWatchpoint(dataBreakpoint, address, size, currentBreak);
+        if (!LLDB_WATCH_ID_IS_VALID(watchpointId)) {
+            continue;
+        }
+        currentBreak.id = watchpointId;
+        currentBreak.verified = true;
+        dataBreakpointSet.AddDataBreakPoint(watchpointId);
         breakpointResult.emplace_back(currentBreak);
     }
+}
+
+lldb::watch_id_t SetDataBreakpointsApiHandler::CreateWatchpoint(const DataBreakpoint &dataBreakpoint,
+    lldb::addr_t address, size_t size, Breakpoint &currentBreak)
+{
+    SBTarget sbTarget = debugger->GetSbTarget();
+    DataBreakpointAccessType accessType = dataBreakpoint.accessType.value_or(DataBreakpointAccessType::WRITE);
+    bool read = accessType != DataBreakpointAccessType::WRITE;
+    bool write = accessType != DataBreakpointAccessType::READ;
+    SBError sbError = SBError();
+    SBWatchpoint sbBreakpoint = sbTarget.WatchAddress(address, size, read, write, sbError);
+    if (sbError.Fail() || !sbBreakpoint.IsValid()) {
+        const char *errorMessage = sbError.GetCString();
+        GenerateFailureBreakpointResult(currentBreak,
+            errorMessage == nullptr ? "Failed to create data breakpoint." : errorMessage);
+        return LLDB_INVALID_WATCH_ID;
+    }
+    lldb::watch_id_t watchpointId = sbBreakpoint.GetID();
+    if (!LLDB_WATCH_ID_IS_VALID(watchpointId)) {
+        GenerateFailureBreakpointResult(currentBreak, "Failed to create data breakpoint.");
+        return LLDB_INVALID_WATCH_ID;
+    }
+    std::string condition = dataBreakpoint.condition.value_or("");
+    if (!condition.empty()) {
+        sbBreakpoint.SetCondition(condition.data());
+    }
+    int hitCount = 0;
+    if (dataBreakpoint.hitCondition.has_value()) {
+        CommonUtils::StringToInt(dataBreakpoint.hitCondition.value(), hitCount);
+    }
+    if (hitCount > 0) {
+        sbBreakpoint.SetIgnoreCount(hitCount - 1);
+    }
+    return watchpointId;
+}
+
+bool SetDataBreakpointsApiHandler::IsConditionUnsupported(const std::string &condition)
+{
+    if (condition.empty()) {
+        return false;
+    }
+#ifdef _DARWIN
+    if (debugger->GetDebuggeeLanguageType() == DebuggeeLanguageType::CANGJIE) {
+        Breakpoint currentBreak;
+        currentBreak.verified = false;
+        currentBreak.id = invalidBreakpointId;
+        currentBreak.message = "Conditional breakpoints are not supported.";
+        breakpointResult.emplace_back(currentBreak);
+        return true;
+    }
+#else
+    if (debugger->GetOption().OhosCangjieDebug()) {
+        Breakpoint currentBreak;
+        currentBreak.verified = false;
+        currentBreak.id = invalidBreakpointId;
+        currentBreak.message = "Conditional breakpoints are not supported.";
+        breakpointResult.emplace_back(currentBreak);
+        return true;
+    }
+#endif
+    return false;
+}
+
+bool SetDataBreakpointsApiHandler::ParseDataId(const std::string &dataId, lldb::addr_t &address, size_t &size)
+{
+    size_t separator = dataId.find('/');
+    if (separator == std::string::npos || separator == 0 || separator + 1 == dataId.size() ||
+        dataId.find('/', separator + 1) != std::string::npos) {
+        Breakpoint currentBreak;
+        GenerateFailureBreakpointResult(currentBreak, "Invalid dataId format, expected 'address/size'.");
+        return false;
+    }
+    vector<string> addrAndSize = CommonUtils::SplitString(dataId, "/");
+    constexpr size_t addressAndSizeElementCount = 2;
+    if (addrAndSize.size() != addressAndSizeElementCount) {
+        Breakpoint currentBreak;
+        GenerateFailureBreakpointResult(currentBreak, "Invalid dataId format, expected 'address/size'.");
+        return false;
+    }
+    return ParseAddressAndSize(addrAndSize, address, size);
+}
+
+bool SetDataBreakpointsApiHandler::ParseAddressAndSize(const std::vector<std::string> &addrAndSize,
+    lldb::addr_t &address, size_t &size)
+{
+    auto isUnsignedDecimal = [](const std::string &value) {
+        return !value.empty() && std::all_of(value.begin(), value.end(), [](unsigned char character) {
+            return std::isdigit(character) != 0;
+        });
+    };
+    if (!isUnsignedDecimal(addrAndSize[0]) || !isUnsignedDecimal(addrAndSize[1])) {
+        Breakpoint currentBreak;
+        GenerateFailureBreakpointResult(currentBreak, "Invalid dataId: address and size must be numbers.");
+        return false;
+    }
+    unsigned long long addressValue;
+    unsigned long long sizeValue;
+    size_t addressParsedLength = 0;
+    size_t sizeParsedLength = 0;
+    try {
+        addressValue = stoull(addrAndSize[0], &addressParsedLength);
+        sizeValue = stoull(addrAndSize[1], &sizeParsedLength);
+    } catch (const std::invalid_argument&) {
+        Breakpoint currentBreak;
+        GenerateFailureBreakpointResult(currentBreak, "Invalid dataId: address and size must be numbers.");
+        return false;
+    } catch (const std::out_of_range&) {
+        Breakpoint currentBreak;
+        GenerateFailureBreakpointResult(currentBreak, "Invalid dataId: address or size is out of range.");
+        return false;
+    }
+    if (addressParsedLength != addrAndSize[0].size() || sizeParsedLength != addrAndSize[1].size() ||
+        addressValue > std::numeric_limits<addr_t>::max() || sizeValue > std::numeric_limits<size_t>::max()) {
+        Breakpoint currentBreak;
+        GenerateFailureBreakpointResult(currentBreak, "Invalid dataId: address or size is out of range.");
+        return false;
+    }
+    address = static_cast<addr_t>(addressValue);
+    size = static_cast<size_t>(sizeValue);
+    return true;
 }
 
 std::unique_ptr<Response> SetDataBreakpointsApiHandler::GenerateSuccessResponse()

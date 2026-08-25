@@ -21,7 +21,26 @@ public:
 
 private:
     void ReadInstructions();
+    void ReadForwardInstructions();
+    bool CollectForwardInstructions(lldb::SBTarget &target, const lldb::SBInstructionList &sbInstructionList,
+                                    std::vector<lldb::SBInstruction> &sbInstructions, lldb::addr_t currentAddress,
+                                    lldb::addr_t &nextInstructionAddress);
+    bool HandleForwardBadByte(lldb::SBTarget &target, lldb::SBAddress &baseSBAddress,
+                              uint64_t &skippedBadBytes);
+    void AppendDapInstructions(const std::vector<lldb::SBInstruction> &sbInstructions, uint64_t firstInstruction,
+                               uint64_t availableCount);
     void ReadInstructionsBackwards();
+    bool ProcessBackwardInstruction(lldb::SBTarget &target, const lldb::SBInstructionList &instrList,
+                                    uint32_t readCount, std::vector<lldb::SBInstructionList> &sbInstrLists,
+                                    lldb::SBAddress &startAddrBackwards);
+    bool HandleBackwardBadByte(lldb::SBTarget &target, lldb::SBAddress &startAddrBackwards,
+                               uint64_t &skippedBadBytes);
+    void CollectBackwardInstructions(const std::vector<lldb::SBInstructionList> &sbInstrLists,
+                                     std::vector<lldb::SBInstruction> &sbInstructions);
+    void AppendBackwardDapInstructions(const std::vector<lldb::SBInstruction> &sbInstructions,
+                                       uint64_t requestedCount);
+    bool IsInstructionValid(const lldb::SBInstruction &sbInstruction, lldb::addr_t currentAddress,
+                            lldb::addr_t nextInstructionAddress) const;
     bool GenStartAddrBackwards(lldb::SBAddress &startAddr);
     Dap::Protocol::DisassembledInstruction GenDapInstruction(lldb::SBInstruction &sbInstruction);
     void AddDapInstrSourceInfo(lldb::SBInstruction &sbInstruction,
@@ -33,6 +52,7 @@ private:
     lldb::addr_t startAddress = 0;
     int64_t instructionOffset = 0;
     int64_t forwardCount = 0;
+    uint64_t instructionCount = 0;
     int64_t proLine = 0; // cache line number of last instruction code to adapt line number follow
 };
 };

@@ -5,6 +5,8 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 #include "gtest/gtest.h"
+#include <cstdint>
+#include <limits>
 #include "CommonUtils.h"
 #include "CommonSuite.h"
 #include "json.hpp"
@@ -13,7 +15,20 @@ using namespace Dap;
 using namespace std;
 using json = nlohmann::json;
 
-class CommonUtilsTest : public CommonSuite {};
+class CommonUtilsTest : public CommonSuite {
+protected:
+    static constexpr int logFileLimit = 10;
+    static constexpr size_t thirdSplitPartIndex = 2;
+    static constexpr int largeRandomStringLength = 1024;
+    static constexpr long long decimalAddress = 100;
+    static constexpr int formatWidth = 10;
+    static constexpr size_t overlongPathLength = 261;
+    static constexpr std::int64_t secondFileTimestamp = 2;
+    static constexpr std::int64_t thirdFileTimestamp = 3;
+    static constexpr int invalidAddressLength = 15;
+    static constexpr uint64_t zeroValue = 0;
+    static constexpr size_t expectedFileCount = 1;
+};
 
 TEST_F(CommonUtilsTest, RegexSearch)
 {
@@ -90,7 +105,7 @@ TEST_F(CommonUtilsTest, GetFilesToBeDeleted)
     string start = "dap_server";
     string ext = "...abc";
     float limitDays = 1;
-    int limitNums = 10;
+    int limitNums = logFileLimit;
     std::vector<std::string> result = CommonUtils::GetFilesToBeDeleted(folder, start, ext, limitDays, limitNums);
     EXPECT_EQ(result.empty(), true);
 }
@@ -98,14 +113,14 @@ TEST_F(CommonUtilsTest, GetFilesToBeDeleted)
 TEST_F(CommonUtilsTest, DeleteObsoleteLogs_0)
 {
     float days = 0.0f;
-    int nums = 10;
+    int nums = logFileLimit;
     CommonUtils::DeleteObsoleteLogs("./", "dap_server", "log", days, nums);
 }
 
 TEST_F(CommonUtilsTest, DeleteObsoleteLogs_1)
 {
-    float days = 3.0f;
-    int nums = 10;
+    float days = CommonUtils::LIMIT_DAYS;
+    int nums = logFileLimit;
 #ifdef _WIN32
     std::string folder = "D:\\";
 #else
@@ -225,7 +240,7 @@ TEST_F(CommonUtilsTest, SplitString_1)
     vector<string> result = CommonUtils::SplitString(str, delimiter);
     EXPECT_EQ(result[0], "aa");
     EXPECT_EQ(result[1], "bb");
-    EXPECT_EQ(result[2], "cc");
+    EXPECT_EQ(result[thirdSplitPartIndex], "cc");
 
     result = CommonUtils::SplitString(str, delimiter, true);
     EXPECT_EQ(result[0], "aa/");
@@ -246,7 +261,7 @@ TEST_F(CommonUtilsTest, StringToInt_1)
     int integer = 0;
     bool result = CommonUtils::StringToInt(str, integer);
     EXPECT_EQ(result, true);
-    EXPECT_EQ(integer, 2147483647);
+    EXPECT_EQ(integer, std::numeric_limits<int>::max());
 }
 
 TEST_F(CommonUtilsTest, StringToLongLong)
@@ -264,7 +279,7 @@ TEST_F(CommonUtilsTest, StringToLongLong_1)
     int64_t integer = 0;
     bool result = CommonUtils::StringToLongLong(str, integer);
     EXPECT_EQ(result, true);
-    EXPECT_EQ(integer, 9223372036854775807);
+    EXPECT_EQ(integer, std::numeric_limits<int64_t>::max());
 }
 
 TEST_F(CommonUtilsTest, GenRandomString)
@@ -275,7 +290,7 @@ TEST_F(CommonUtilsTest, GenRandomString)
     length = 1;
     res = CommonUtils::GenRandomString(length);
     EXPECT_TRUE(res.length() == static_cast<size_t>(length));
-    length = 1024;
+    length = largeRandomStringLength;
     res = CommonUtils::GenRandomString(length);
     EXPECT_TRUE(res.length() == static_cast<size_t>(length));
 }
@@ -319,9 +334,9 @@ TEST_F(CommonUtilsTest, TrimString)
 
 TEST_F(CommonUtilsTest, Dec2HexAddress)
 {
-    long long num1 = 100;
+    long long num1 = decimalAddress;
     long long num2 = 0;
-    int hex = 8;
+    int hex = CommonUtils::HEX_ADDRESS_WIDTH_32_BITS_CPU;
     string res1 = "0X00000064";
     string res2 = "0x00000064";
     string res3 = "0x00000000";
@@ -336,7 +351,7 @@ TEST_F(CommonUtilsTest, Dec2HexAddress)
 TEST_F(CommonUtilsTest, FormatCharPointer)
 {
     char str[] = "abc";
-    int opWidth = 10;
+    int opWidth = formatWidth;
     char opFill = 'z';
     string res1 = "abczzzzzzz";
     string res2 = "zzzzzzzabc";
@@ -348,9 +363,9 @@ TEST_F(CommonUtilsTest, FormatCharPointer)
 
 TEST_F(CommonUtilsTest, NormalizeFilePath)
 {
-    string Addr(261, 'a');
+    string address(overlongPathLength, 'a');
     string errorMSG;
-    bool ret = CommonUtils::NormalizeFilePath(Addr, errorMSG);
+    bool ret = CommonUtils::NormalizeFilePath(address, errorMSG);
 #ifdef _WIN32
     EXPECT_EQ(errorMSG, "path is too long!");
 #else
@@ -369,7 +384,7 @@ TEST_F(CommonUtilsTest, IsValidAlphaAndNumeric)
     EXPECT_FALSE(ret);
     char str2[] = "12abAB@#";
     ret = CommonUtils::IsValidAlphaAndNumeric(str2);
-    EXPECT_FALSE(ret);;
+    EXPECT_FALSE(ret);
     char str3[] = "123abcABC";
     ret = CommonUtils::IsValidAlphaAndNumeric(str3);
     EXPECT_TRUE(ret);
@@ -446,15 +461,14 @@ TEST_F(CommonUtilsTest, OctToChar)
 TEST_F(CommonUtilsTest, ReverseEscapeChar)
 {
     signed char res;
-    bool ret;
     std::vector<string> escapeChar = { "\\0", "\\a", "\\b", "\\t", "\\n", "\\v",
                                        "\\f", "\\r", "\\\"", "\\\'", "\\\?", "\\\\"};
     for (const auto &esc : escapeChar) {
-        ret = CommonUtils::ReverseEscapeChar(esc, res);
+        bool ret = CommonUtils::ReverseEscapeChar(esc, res);
         EXPECT_EQ(ret, true);
     }
     string str = "\\aa";
-    ret = CommonUtils::ReverseEscapeChar(str, res);
+    bool ret = CommonUtils::ReverseEscapeChar(str, res);
     EXPECT_EQ(ret, false);
 }
 
@@ -470,27 +484,27 @@ TEST_F(CommonUtilsTest, HexStringToUnsignedLongLong)
     uint64_t ull = 0;
     bool result = CommonUtils::HexStringToUnsignedLongLong(str, ull);
     EXPECT_EQ(result, false);
-    EXPECT_EQ(ull, 0);
+    EXPECT_EQ(ull, zeroValue);
     str = "qwer";
     result = CommonUtils::HexStringToUnsignedLongLong(str, ull);
     EXPECT_EQ(result, false);
-    EXPECT_EQ(ull, 0);
+    EXPECT_EQ(ull, zeroValue);
     str = "12345678901234567";
     result = CommonUtils::HexStringToUnsignedLongLong(str, ull);
     EXPECT_EQ(result, false);
-    EXPECT_EQ(ull, 0);
+    EXPECT_EQ(ull, zeroValue);
     str = "ff";
     result = CommonUtils::HexStringToUnsignedLongLong(str, ull);
     EXPECT_EQ(result, true);
-    EXPECT_EQ(ull, 255);
+    EXPECT_EQ(ull, static_cast<uint64_t>(CommonUtils::MAX_UNSIGNED_CHAR));
     str = "0x0000";
     result = CommonUtils::HexStringToUnsignedLongLong(str, ull);
     EXPECT_EQ(result, true);
-    EXPECT_EQ(ull, 0);
+    EXPECT_EQ(ull, zeroValue);
     str = "0x00000000000000000000000000000000ff";
     result = CommonUtils::HexStringToUnsignedLongLong(str, ull);
     EXPECT_EQ(result, true);
-    EXPECT_EQ(ull, 255);
+    EXPECT_EQ(ull, static_cast<uint64_t>(CommonUtils::MAX_UNSIGNED_CHAR));
 }
 
 TEST_F(CommonUtilsTest, ExecShellCmdWithResult)
@@ -531,11 +545,13 @@ TEST_F(CommonUtilsTest, ConvertDriveLetterToUppercase)
 
 TEST_F(CommonUtilsTest, GetFilesByNumbers)
 {
-    std::vector<std::pair<std::string, std::int64_t>> vec = {{"1", 1}, {"2", 2}, {"3", 3}};
+    std::vector<std::pair<std::string, std::int64_t>> vec = {
+        {"1", 1}, {"2", secondFileTimestamp}, {"3", thirdFileTimestamp}
+    };
     int number = 1;
     std::vector<std::string> vecStr;
     vecStr = CommonUtils::GetFilesByNumbers(vec, number);
-    EXPECT_EQ(vecStr.size(), 1);
+    EXPECT_EQ(vecStr.size(), expectedFileCount);
 }
 
 TEST_F(CommonUtilsTest, GetAddressLength)
@@ -543,15 +559,15 @@ TEST_F(CommonUtilsTest, GetAddressLength)
     string addr = "0x0123456789abcdef";
     int length = 0;
     length = CommonUtils::GetAddressLength(addr);
-    EXPECT_EQ(length, 16);
+    EXPECT_EQ(length, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU);
 
     addr = "0x01234567";
     length = CommonUtils::GetAddressLength(addr);
-    EXPECT_EQ(length, 8);
+    EXPECT_EQ(length, CommonUtils::HEX_ADDRESS_WIDTH_32_BITS_CPU);
 
     addr = "0x0123";
     length = CommonUtils::GetAddressLength(addr);
-    EXPECT_EQ(length, 4);
+    EXPECT_EQ(length, CommonUtils::HEX_ADDRESS_WIDTH_16_BITS_CPU);
 
     addr = "0123456789abcdef";
     length = CommonUtils::GetAddressLength(addr);
@@ -564,20 +580,20 @@ TEST_F(CommonUtilsTest, GetAddressLength)
 
 TEST_F(CommonUtilsTest, GetMaxValue)
 {
-    int length = 16;
+    int length = CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU;
     int64_t value = 0;
     value = CommonUtils::GetMaxValidAddrValue(length);
     EXPECT_EQ(value, INT64_MAX);
 
-    length = 8;
+    length = CommonUtils::HEX_ADDRESS_WIDTH_32_BITS_CPU;
     value = CommonUtils::GetMaxValidAddrValue(length);
     EXPECT_EQ(value, INT32_MAX);
 
-    length = 4;
+    length = CommonUtils::HEX_ADDRESS_WIDTH_16_BITS_CPU;
     value = CommonUtils::GetMaxValidAddrValue(length);
     EXPECT_EQ(value, INT16_MAX);
 
-    length = 15;
+    length = invalidAddressLength;
     value = CommonUtils::GetMaxValidAddrValue(length);
     EXPECT_EQ(value, -1);
 }
@@ -585,8 +601,7 @@ TEST_F(CommonUtilsTest, GetMaxValue)
 TEST_F(CommonUtilsTest, GetEnv)
 {
     string envName = "HOME";
-    string ret;
-    ret = CommonUtils::GetEnv(envName);
+    string ret = CommonUtils::GetEnv(envName);
 #ifdef _WIN32
     EXPECT_EQ(ret, ret);
 #endif

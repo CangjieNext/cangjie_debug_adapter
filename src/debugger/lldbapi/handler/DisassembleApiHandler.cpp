@@ -6,7 +6,8 @@
 
 #include "DisassembleApiHandler.h"
 
-#include <climits>
+#include <algorithm>
+#include <limits>
 
 #include "CommonUtils.h"
 #include "DapLog.h"
@@ -15,6 +16,10 @@ using namespace std;
 using namespace Dap;
 using namespace Dap::Protocol;
 using namespace lldb;
+
+namespace {
+constexpr uint64_t MAX_CONSECUTIVE_BAD_BYTES = 4096;
+}
 
 UniqueResponsePtr DisassembleApiHandler::HandleRequest(UniqueRequestPtr request)
 {
@@ -26,11 +31,28 @@ UniqueResponsePtr DisassembleApiHandler::HandleRequest(UniqueRequestPtr request)
     lldb::addr_t address;
     if (!CommonUtils::HexStringToUnsignedLongLong(reqPtr->arguments.memoryReference, address)) {
         string error = "ERROR: Invalid memory reference.";
-        return debugger->CompleteFailureResponse(std::make_unique<ReadMemoryResponse>(), error, request->seq);
+        return debugger->CompleteFailureResponse(std::make_unique<DisassembleResponse>(), error, request->seq);
     }
-    int64_t offset = reqPtr->arguments.offset.has_value() ? reqPtr->arguments.offset.value() : 0;
-    startAddress = address + offset;
-    instructionOffset = reqPtr->arguments.offset.has_value() ? reqPtr->arguments.instructionOffset.value() : 0;
+    int64_t offset = reqPtr->arguments.offset.value_or(0);
+    uint64_t offsetMagnitude = offset < 0 ? static_cast<uint64_t>(-(offset + 1)) + 1 :
+                                           static_cast<uint64_t>(offset);
+    if ((offset < 0 && offsetMagnitude > address) ||
+        (offset >= 0 && offsetMagnitude > std::numeric_limits<lldb::addr_t>::max() - address)) {
+        string error = "ERROR: Memory reference offset is out of range.";
+        return debugger->CompleteFailureResponse(std::make_unique<DisassembleResponse>(), error, request->seq);
+    }
+    startAddress = offset < 0 ? address - offsetMagnitude : address + offsetMagnitude;
+    instructionOffset = reqPtr->arguments.instructionOffset.value_or(0);
+    if (reqPtr->arguments.instructionCount < 0) {
+        string error = "ERROR: Instruction count must not be negative.";
+        return debugger->CompleteFailureResponse(std::make_unique<DisassembleResponse>(), error, request->seq);
+    }
+    if (instructionOffset > 0 &&
+        reqPtr->arguments.instructionCount > std::numeric_limits<int64_t>::max() - instructionOffset) {
+        string error = "ERROR: Instruction range is out of bounds.";
+        return debugger->CompleteFailureResponse(std::make_unique<DisassembleResponse>(), error, request->seq);
+    }
+    instructionCount = static_cast<uint64_t>(reqPtr->arguments.instructionCount);
     forwardCount = reqPtr->arguments.instructionCount + instructionOffset;
     proLine = 0;
 
@@ -43,42 +65,111 @@ UniqueResponsePtr DisassembleApiHandler::HandleRequest(UniqueRequestPtr request)
 
 void DisassembleApiHandler::ReadInstructions()
 {
-    SBTarget &target = debugger->GetSbTarget();
     if (instructionOffset < 0) {
         ReadInstructionsBackwards();
     }
     if (forwardCount > 0) {
-        vector<SBInstruction> sbInstructions;
-        int64_t currentCount = forwardCount;
-        SBAddress baseSBAddress = SBAddress(startAddress, target);
-        while (true) {
-            SBInstructionList sbInstructionList = target.ReadInstructions(baseSBAddress, currentCount);
-            if (sbInstructionList.GetSize() == 0) {
-                lldb::addr_t addr = baseSBAddress.GetLoadAddress(target);
-                LOG_INFO("Maybe bad byte: ",
-                         CommonUtils::Dec2HexAddress(addr, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU));
-                baseSBAddress = SBAddress(addr + 1, target);
-                continue;
-            }
-            for (uint32_t i = 0; i < (uint32_t)sbInstructionList.GetSize(); i++) {
-                SBInstruction sbInstruction = sbInstructionList.GetInstructionAtIndex(i);
-                sbInstructions.emplace_back(sbInstruction);
-            }
-            if (sbInstructions.size() >= (size_t)forwardCount) {
+        ReadForwardInstructions();
+    }
+}
+
+void DisassembleApiHandler::ReadForwardInstructions()
+{
+    SBTarget &target = debugger->GetSbTarget();
+    vector<SBInstruction> sbInstructions;
+    uint64_t currentCount = static_cast<uint64_t>(forwardCount);
+    uint64_t skippedBadBytes = 0;
+    SBAddress baseSBAddress = SBAddress(startAddress, target);
+    lldb::addr_t nextInstructionAddress = LLDB_INVALID_ADDRESS;
+    while (static_cast<uint64_t>(sbInstructions.size()) < static_cast<uint64_t>(forwardCount) &&
+           skippedBadBytes < MAX_CONSECUTIVE_BAD_BYTES) {
+        uint32_t readCount = currentCount > std::numeric_limits<uint32_t>::max() ?
+            std::numeric_limits<uint32_t>::max() : static_cast<uint32_t>(currentCount);
+        SBInstructionList sbInstructionList = target.ReadInstructions(baseSBAddress, readCount);
+        if (sbInstructionList.GetSize() == 0) {
+            if (!HandleForwardBadByte(target, baseSBAddress, skippedBadBytes)) {
                 break;
-            } else {
-                currentCount = forwardCount - sbInstructions.size();
-                SBInstruction instruction = sbInstructionList.GetInstructionAtIndex(sbInstructionList.GetSize() - 1);
-                lldb::addr_t newAddress = instruction.GetAddress().GetLoadAddress(target) + instruction.GetByteSize();
-                baseSBAddress = SBAddress(newAddress, target);
             }
+            continue;
         }
-        for (uint32_t k = instructionOffset > 0 ? instructionOffset : 0; k < forwardCount; k++) {
-            SBInstruction sbInstruction = sbInstructions.at(k);
-            DisassembledInstruction dapInstruction = GenDapInstruction(sbInstruction);
-            dapInstructions.emplace_back(dapInstruction);
+        skippedBadBytes = 0;
+        lldb::addr_t currentAddress = baseSBAddress.GetLoadAddress(target);
+        if (!CollectForwardInstructions(target, sbInstructionList, sbInstructions,
+                                        currentAddress, nextInstructionAddress)) {
+            break;
+        }
+        if (static_cast<uint64_t>(sbInstructions.size()) >= static_cast<uint64_t>(forwardCount)) {
+            break;
+        }
+        currentCount = static_cast<uint64_t>(forwardCount) - static_cast<uint64_t>(sbInstructions.size());
+        if (nextInstructionAddress == LLDB_INVALID_ADDRESS || nextInstructionAddress <= currentAddress) {
+            LOG_INFO("Instruction address did not advance.");
+            break;
+        }
+        baseSBAddress = SBAddress(nextInstructionAddress, target);
+    }
+    uint64_t firstInstruction = instructionOffset > 0 ? static_cast<uint64_t>(instructionOffset) : 0;
+    uint64_t availableCount = std::min(static_cast<uint64_t>(sbInstructions.size()),
+                                       static_cast<uint64_t>(forwardCount));
+    AppendDapInstructions(sbInstructions, firstInstruction, availableCount);
+}
+
+bool DisassembleApiHandler::CollectForwardInstructions(SBTarget &target,
+    const SBInstructionList &sbInstructionList, vector<SBInstruction> &sbInstructions,
+    lldb::addr_t currentAddress, lldb::addr_t &nextInstructionAddress)
+{
+    for (size_t i = 0; i < sbInstructionList.GetSize(); i++) {
+        SBInstruction sbInstruction = sbInstructionList.GetInstructionAtIndex(static_cast<uint32_t>(i));
+        if (!IsInstructionValid(sbInstruction, currentAddress, nextInstructionAddress)) {
+            LOG_INFO("Invalid or non-advancing instruction returned by LLDB.");
+            return false;
+        }
+        sbInstructions.emplace_back(sbInstruction);
+        nextInstructionAddress = sbInstruction.GetAddress().GetLoadAddress(target) + sbInstruction.GetByteSize();
+        if (static_cast<uint64_t>(sbInstructions.size()) == static_cast<uint64_t>(forwardCount)) {
+            break;
         }
     }
+    return true;
+}
+
+bool DisassembleApiHandler::HandleForwardBadByte(SBTarget &target, SBAddress &baseSBAddress,
+                                                 uint64_t &skippedBadBytes)
+{
+    lldb::addr_t addr = baseSBAddress.GetLoadAddress(target);
+    LOG_INFO("Maybe bad byte: ",
+             CommonUtils::Dec2HexAddress(addr, CommonUtils::hexAddressWidth64BitsCpu));
+    if (addr == LLDB_INVALID_ADDRESS || addr == std::numeric_limits<lldb::addr_t>::max()) {
+        return false;
+    }
+    baseSBAddress = SBAddress(addr + 1, target);
+    ++skippedBadBytes;
+    return true;
+}
+
+void DisassembleApiHandler::AppendDapInstructions(const vector<SBInstruction> &sbInstructions,
+                                                  uint64_t firstInstruction, uint64_t availableCount)
+{
+    for (uint64_t k = firstInstruction; k < availableCount; k++) {
+        SBInstruction sbInstruction = sbInstructions[static_cast<size_t>(k)];
+        DisassembledInstruction dapInstruction = GenDapInstruction(sbInstruction);
+        dapInstructions.emplace_back(dapInstruction);
+    }
+}
+
+bool DisassembleApiHandler::IsInstructionValid(const SBInstruction &sbInstruction, lldb::addr_t currentAddress,
+    lldb::addr_t nextInstructionAddress) const
+{
+    SBTarget &target = debugger->GetSbTarget();
+    lldb::addr_t instructionAddress = sbInstruction.GetAddress().GetLoadAddress(target);
+    size_t instructionSize = sbInstruction.GetByteSize();
+    if (!sbInstruction.IsValid() || instructionAddress == LLDB_INVALID_ADDRESS || instructionSize == 0 ||
+        instructionSize > std::numeric_limits<lldb::addr_t>::max() - instructionAddress ||
+        currentAddress == LLDB_INVALID_ADDRESS || instructionAddress < currentAddress ||
+        (nextInstructionAddress != LLDB_INVALID_ADDRESS && instructionAddress < nextInstructionAddress)) {
+        return false;
+    }
+    return true;
 }
 
 void DisassembleApiHandler::ReadInstructionsBackwards()
@@ -91,31 +182,81 @@ void DisassembleApiHandler::ReadInstructionsBackwards()
         return;
     }
     LOG_INFO("startAddrBackwards=", CommonUtils::Dec2HexAddress(startAddrBackwards.GetLoadAddress(target),
-                                                                CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU));
-    while (true) {
-        SBInstructionList instrList = target.ReadInstructions(startAddrBackwards, -instructionOffset);
+                                                                CommonUtils::hexAddressWidth64BitsCpu));
+    uint64_t requestedCount = static_cast<uint64_t>(-(instructionOffset + 1)) + 1;
+    uint64_t skippedBadBytes = 0;
+    while (skippedBadBytes < MAX_CONSECUTIVE_BAD_BYTES) {
+        uint32_t readCount = requestedCount > std::numeric_limits<uint32_t>::max() ?
+            std::numeric_limits<uint32_t>::max() : static_cast<uint32_t>(requestedCount);
+        SBInstructionList instrList = target.ReadInstructions(startAddrBackwards, readCount);
         if (instrList.GetSize() == 0) {
-            lldb::addr_t addr = startAddrBackwards.GetLoadAddress(target);
-            LOG_INFO("Maybe bad byte: ", CommonUtils::Dec2HexAddress(addr, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU));
-            startAddrBackwards =  SBAddress(addr + 1, target);
+            if (!HandleBackwardBadByte(target, startAddrBackwards, skippedBadBytes)) {
+                break;
+            }
             continue;
         }
-        SBInstruction instruction = instrList.GetInstructionAtIndex(instrList.GetSize() - 1);
-        lldb::addr_t endAddress = instruction.GetAddress().GetLoadAddress(target) + instruction.GetByteSize() - 1;
-        if (endAddress < startAddress - 1) {
-            if ((int)instrList.GetSize() == -instructionOffset) {
-                sbInstrLists.clear(); // out of target range
-            }
-            sbInstrLists.emplace_back(instrList); // maybe in target range
-            startAddrBackwards =  SBAddress(endAddress + 1, target);
-        } else {
-            sbInstrLists.emplace_back(instrList);
+        skippedBadBytes = 0;
+        if (!ProcessBackwardInstruction(target, instrList, readCount, sbInstrLists, startAddrBackwards)) {
             break;
         }
     }
+    CollectBackwardInstructions(sbInstrLists, sbInstructions);
+    AppendBackwardDapInstructions(sbInstructions, requestedCount);
+}
+
+bool DisassembleApiHandler::ProcessBackwardInstruction(SBTarget &target, const SBInstructionList &instrList,
+    uint32_t readCount, vector<SBInstructionList> &sbInstrLists, SBAddress &startAddrBackwards)
+{
+    SBInstruction instruction = instrList.GetInstructionAtIndex(
+        static_cast<uint32_t>(instrList.GetSize() - 1));
+    lldb::addr_t instructionAddress = instruction.GetAddress().GetLoadAddress(target);
+    size_t instructionSize = instruction.GetByteSize();
+    lldb::addr_t currentAddress = startAddrBackwards.GetLoadAddress(target);
+    if (instructionAddress == LLDB_INVALID_ADDRESS || instructionSize == 0 ||
+        instructionSize - 1 > std::numeric_limits<lldb::addr_t>::max() - instructionAddress) {
+        LOG_INFO("Unable to advance while reading instructions backwards.");
+        return false;
+    }
+    lldb::addr_t endAddress = instructionAddress + instructionSize - 1;
+    bool endsBeforeTarget = endAddress < startAddress && startAddress - endAddress > 1;
+    if (endsBeforeTarget) {
+        lldb::addr_t nextAddress = endAddress + 1;
+        if (currentAddress == LLDB_INVALID_ADDRESS || nextAddress <= currentAddress) {
+            LOG_INFO("Instruction address did not advance while reading backwards.");
+            return false;
+        }
+        if (instrList.GetSize() == readCount) {
+            sbInstrLists.clear(); // out of target range
+        }
+        sbInstrLists.emplace_back(instrList); // maybe in target range
+        startAddrBackwards = SBAddress(nextAddress, target);
+    } else {
+        sbInstrLists.emplace_back(instrList);
+        return false;
+    }
+    return true;
+}
+
+bool DisassembleApiHandler::HandleBackwardBadByte(SBTarget &target, SBAddress &startAddrBackwards,
+                                                  uint64_t &skippedBadBytes)
+{
+    lldb::addr_t addr = startAddrBackwards.GetLoadAddress(target);
+    LOG_INFO("Maybe bad byte: ", CommonUtils::Dec2HexAddress(addr, CommonUtils::hexAddressWidth64BitsCpu));
+    if (addr == LLDB_INVALID_ADDRESS || addr == std::numeric_limits<lldb::addr_t>::max()) {
+        return false;
+    }
+    startAddrBackwards = SBAddress(addr + 1, target);
+    ++skippedBadBytes;
+    return true;
+}
+
+void DisassembleApiHandler::CollectBackwardInstructions(const vector<SBInstructionList> &sbInstrLists,
+    vector<SBInstruction> &sbInstructions)
+{
+    SBTarget &target = debugger->GetSbTarget();
     for (auto sbInstrList : sbInstrLists) {
-        for (uint32_t i = 0; i < sbInstrList.GetSize(); i++) {
-            SBInstruction sbInstruction = sbInstrList.GetInstructionAtIndex(i);
+        for (size_t i = 0; i < sbInstrList.GetSize(); i++) {
+            SBInstruction sbInstruction = sbInstrList.GetInstructionAtIndex(static_cast<uint32_t>(i));
             lldb::addr_t loadAddr = sbInstruction.GetAddress().GetLoadAddress(target);
             if (loadAddr >= startAddress) {
                 break; // already reached forward range
@@ -123,9 +264,17 @@ void DisassembleApiHandler::ReadInstructionsBackwards()
             sbInstructions.emplace_back(sbInstruction);
         }
     }
-    int start = sbInstructions.size() > (size_t)(-instructionOffset) ? instructionOffset : -(int)sbInstructions.size();
-    for (int j = start; j < 0; j++) {
-        DisassembledInstruction dapInstruction = GenDapInstruction(sbInstructions[sbInstructions.size() + (size_t)j]);
+}
+
+void DisassembleApiHandler::AppendBackwardDapInstructions(const vector<SBInstruction> &sbInstructions,
+                                                          uint64_t requestedCount)
+{
+    uint64_t availableCount = static_cast<uint64_t>(sbInstructions.size());
+    uint64_t firstInstruction = availableCount > requestedCount ? availableCount - requestedCount : 0;
+    uint64_t resultCount = std::min(instructionCount, availableCount - firstInstruction);
+    uint64_t endInstruction = firstInstruction + resultCount;
+    for (uint64_t j = firstInstruction; j < endInstruction; j++) {
+        DisassembledInstruction dapInstruction = GenDapInstruction(sbInstructions[static_cast<size_t>(j)]);
         dapInstructions.emplace_back(dapInstruction);
     }
 }
@@ -135,17 +284,12 @@ bool DisassembleApiHandler::GenStartAddrBackwards(SBAddress& startAddr)
     if (instructionOffset > 0) {
         return false;
     }
-    constexpr int64_t maxOffset = INT64_MAX / INSTRUCTION_BYTES;
-    if (instructionOffset < -maxOffset) {
-        LOG_ERROR("instructionOffset is too large, potential overflow");
-        return false;
-    }
     lldb::addr_t tryAddress;
-    uint64_t positiveOffset = static_cast<uint64_t>(-instructionOffset);
-    if (positiveOffset * INSTRUCTION_BYTES > startAddress) {
+    uint64_t positiveOffset = static_cast<uint64_t>(-(instructionOffset + 1)) + 1;
+    if (positiveOffset > startAddress / INSTRUCTION_BYTES) {
         tryAddress = startAddress;
     } else {
-        tryAddress = startAddress + instructionOffset * INSTRUCTION_BYTES;
+        tryAddress = startAddress - positiveOffset * INSTRUCTION_BYTES;
     }
     SBAddress adjustingSBAddress(tryAddress, debugger->GetSbTarget());
     SBSymbol symbol = adjustingSBAddress.GetSymbol();
@@ -176,7 +320,7 @@ DisassembledInstruction DisassembleApiHandler::GenDapInstruction(SBInstruction &
     DisassembledInstruction dapInstruction;
     SBTarget &target = debugger->GetSbTarget();
     lldb::addr_t loadAddr = sbInstruction.GetAddress().GetLoadAddress(target);
-    dapInstruction.address = CommonUtils::Dec2HexAddress(loadAddr, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU);
+    dapInstruction.address = CommonUtils::Dec2HexAddress(loadAddr, CommonUtils::hexAddressWidth64BitsCpu);
     SBError sbError;
     size_t instrBytes = sbInstruction.GetByteSize();
     unique_ptr<unsigned char[]> buf = make_unique<unsigned char[]>(instrBytes);

@@ -112,7 +112,7 @@ UniqueResponsePtr EvaluateApiHandler::GenerateSuccessResponse(SBValue &sbValue, 
         responsePointer->memoryReference = sbValue.GetValue();
     }
     lldb::addr_t address = sbValue.GetLoadAddress();
-    responsePointer->memoryAddress = CommonUtils::Dec2HexAddress(address, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU);
+    responsePointer->memoryAddress = CommonUtils::Dec2HexAddress(address, CommonUtils::hexAddressWidth64BitsCpu);
     return responsePointer;
 }
 

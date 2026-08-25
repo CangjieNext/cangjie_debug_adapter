@@ -84,7 +84,7 @@ void StackTraceApiHandler::ParseFrameInfo(lldb::SBFrame &sbFrame, int64_t frameI
     stackFrame.id = frameId;
     stackFrame.column = 0;
     stackFrame.instructionPointerReference = CommonUtils::Dec2HexAddress(sbFrame.GetPC(),
-        CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU);
+        CommonUtils::hexAddressWidth64BitsCpu);
     const char *pFnName = sbFrame.GetFunctionName();
     stackFrame.name = (pFnName != nullptr) ? pFnName : unknown;
 

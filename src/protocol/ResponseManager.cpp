@@ -4,6 +4,8 @@
 //
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
+#include <exception>
+
 #include "ResponseManager.h"
 #include "TypeUtils.h"
 
@@ -28,11 +30,11 @@ std::optional<json_t> ResponseManager::ToJson(const Response &response)
     }
     try {
         return func.value()(response);
-    } catch (json_t::type_error &err) {
-        LOG_ERROR("Some fields' type is not match, json error: ", err.what());
+    } catch (const json_t::exception &err) {
+        LOG_ERROR("to json failed, json error: ", err.what());
         return std::nullopt;
-    } catch (json_t::parse_error &err) {
-        LOG_ERROR("Parse response failed, json error: ", err.what());
+    } catch (const std::exception &err) {
+        LOG_ERROR("to json failed, error: ", err.what());
         return std::nullopt;
     } catch (...) {
         LOG_ERROR("to json failed, unknown json error.");
@@ -251,7 +253,8 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::DisconnectRes
 }
 
 template <>
-std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::TerminateResponse>(const TerminateResponse &response)
+std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::TerminateResponse>(
+    const TerminateResponse &response)
 {
     json_t json;
     SetResponseJsonBaseInfo(response, json);
@@ -268,10 +271,10 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::BreakpointLoc
     for (BreakpointLocation breakpointLocation : response.breakpoints) {
         json_t breakpointJson = json_t::object();
         breakpointJson["line"] = breakpointLocation.line;
-        SET_JSON_OPTIONAL(breakpointJson["column"], breakpointLocation.column)
-        SET_JSON_OPTIONAL(breakpointJson["endLine"], breakpointLocation.endLine)
-        SET_JSON_OPTIONAL(breakpointJson["endColumn"], breakpointLocation.endColumn)
-        SET_JSON_OPTIONAL(breakpointJson["address"], breakpointLocation.address)
+        SetJsonOptional(breakpointJson, breakpointLocation.column, "column");
+        SetJsonOptional(breakpointJson, breakpointLocation.endLine, "endLine");
+        SetJsonOptional(breakpointJson, breakpointLocation.endColumn, "endColumn");
+        SetJsonOptional(breakpointJson, breakpointLocation.address, "address");
         breakpointsJson.push_back(std::move(breakpointJson));
     }
     json["body"]["breakpoints"] = std::move(breakpointsJson);
@@ -284,17 +287,17 @@ json_t SetBreakpointsJson(const std::vector<Breakpoint> &breakpoints)
     for (Breakpoint breakpoint : breakpoints) {
         json_t breakpointJson = json_t::object();
         breakpointJson["verified"] = breakpoint.verified;
-        SET_JSON_OPTIONAL(breakpointJson["id"], breakpoint.id)
-        SET_JSON_OPTIONAL(breakpointJson["message"], breakpoint.message)
+        SetJsonOptional(breakpointJson, breakpoint.id, "id");
+        SetJsonOptional(breakpointJson, breakpoint.message, "message");
         if (breakpoint.source.has_value()) {
             breakpointJson["source"] = GetTypeJson(breakpoint.source.value()).value();
         }
-        SET_JSON_OPTIONAL(breakpointJson["line"], breakpoint.line)
-        SET_JSON_OPTIONAL(breakpointJson["column"], breakpoint.column)
-        SET_JSON_OPTIONAL(breakpointJson["endLine"], breakpoint.endLine)
-        SET_JSON_OPTIONAL(breakpointJson["endColumn"], breakpoint.endColumn)
-        SET_JSON_OPTIONAL(breakpointJson["instructionReference"], breakpoint.instructionReference)
-        SET_JSON_OPTIONAL(breakpointJson["offset"], breakpoint.offset)
+        SetJsonOptional(breakpointJson, breakpoint.line, "line");
+        SetJsonOptional(breakpointJson, breakpoint.column, "column");
+        SetJsonOptional(breakpointJson, breakpoint.endLine, "endLine");
+        SetJsonOptional(breakpointJson, breakpoint.endColumn, "endColumn");
+        SetJsonOptional(breakpointJson, breakpoint.instructionReference, "instructionReference");
+        SetJsonOptional(breakpointJson, breakpoint.offset, "offset");
         breakpointsJson.push_back(std::move(breakpointJson));
     }
     return breakpointsJson;
@@ -318,17 +321,17 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::AddSourceBrea
     SetResponseJsonBaseInfo(response, json);
     json_t breakpointJson = json_t::object();
     breakpointJson["verified"] = response.breakpoint.verified;
-    SET_JSON_OPTIONAL(breakpointJson["id"], response.breakpoint.id)
-    SET_JSON_OPTIONAL(breakpointJson["message"], response.breakpoint.message)
+    SetJsonOptional(breakpointJson, response.breakpoint.id, "id");
+    SetJsonOptional(breakpointJson, response.breakpoint.message, "message");
     if (response.breakpoint.source.has_value()) {
         breakpointJson["source"] = GetTypeJson(response.breakpoint.source.value()).value();
     }
-    SET_JSON_OPTIONAL(breakpointJson["line"], response.breakpoint.line)
-    SET_JSON_OPTIONAL(breakpointJson["column"], response.breakpoint.column)
-    SET_JSON_OPTIONAL(breakpointJson["endLine"], response.breakpoint.endLine)
-    SET_JSON_OPTIONAL(breakpointJson["endColumn"], response.breakpoint.endColumn)
-    SET_JSON_OPTIONAL(breakpointJson["instructionReference"], response.breakpoint.instructionReference)
-    SET_JSON_OPTIONAL(breakpointJson["offset"], response.breakpoint.offset)
+    SetJsonOptional(breakpointJson, response.breakpoint.line, "line");
+    SetJsonOptional(breakpointJson, response.breakpoint.column, "column");
+    SetJsonOptional(breakpointJson, response.breakpoint.endLine, "endLine");
+    SetJsonOptional(breakpointJson, response.breakpoint.endColumn, "endColumn");
+    SetJsonOptional(breakpointJson, response.breakpoint.instructionReference, "instructionReference");
+    SetJsonOptional(breakpointJson, response.breakpoint.offset, "offset");
     json["body"]["breakpoint"] = breakpointJson;
     return json;
 }
@@ -367,7 +370,7 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::DataBreakpoin
         }
         json["body"]["accessTypes"] = accessTypes;
     }
-    SET_JSON_OPTIONAL(json["body"]["canPersist"], response.canPersist)
+    SetJsonOptional(json, response.canPersist, "body", "canPersist");
     return json;
 }
 
@@ -406,7 +409,7 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::ContinueRespo
 {
     json_t json;
     SetResponseJsonBaseInfo(response, json);
-    SET_JSON_OPTIONAL(json["body"]["allThreadsContinued"], response.allThreadsContinued)
+    SetJsonOptional(json, response.allThreadsContinued, "body", "allThreadsContinued");
     return json;
 }
 
@@ -445,7 +448,7 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::StackTraceRes
         stackFramesJson.push_back(GetTypeJson(stackFrame).value());
     }
     json["body"]["stackFrames"] = std::move(stackFramesJson);
-    SET_JSON_OPTIONAL(json["body"]["totalFrames"], response.totalFrames)
+    SetJsonOptional(json, response.totalFrames, "body", "totalFrames");
     return json;
 }
 
@@ -459,7 +462,7 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::ThreadsRespon
         json_t threadJson = json_t::object();
         threadJson["id"] = thread.id;
         threadJson["name"] = thread.name;
-        SET_JSON_OPTIONAL(threadJson["tid"], thread.tid)
+        SetJsonOptional(threadJson, thread.tid, "tid");
         threadsJson.push_back(std::move(threadJson));
     }
     json["body"]["threads"] = std::move(threadsJson);
@@ -477,7 +480,7 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::ScopesRespons
         scopeJson["name"] = scope.name;
         scopeJson["variablesReference"] = scope.variablesReference;
         scopeJson["expensive"] = scope.expensive;
-        SET_JSON_OPTIONAL(scopeJson["presentationHint"], scope.presentationHint)
+        SetJsonOptional(scopeJson, scope.presentationHint, "presentationHint");
         scopesJson.push_back(scopeJson);
     }
     json["body"]["scopes"] = std::move(scopesJson);
@@ -485,7 +488,8 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::ScopesRespons
 }
 
 template <>
-std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::VariablesResponse>(const VariablesResponse &response)
+std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::VariablesResponse>(
+    const VariablesResponse &response)
 {
     json_t json;
     SetResponseJsonBaseInfo(response, json);
@@ -508,10 +512,10 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<Dap::Protocol::SetVariableRe
     SetResponseJsonBaseInfo(response, json);
     json_t varJson = json_t::object();
     varJson["value"] = response.value;
-    SET_JSON_OPTIONAL(varJson["type"], response.variableType)
-    SET_JSON_OPTIONAL(varJson["variablesReference"], response.variablesReference)
-    SET_JSON_OPTIONAL(varJson["namedVariables"], response.namedVariables)
-    SET_JSON_OPTIONAL(varJson["indexedVariables"], response.indexedVariables)
+    SetJsonOptional(varJson, response.variableType, "type");
+    SetJsonOptional(varJson, response.variablesReference, "variablesReference");
+    SetJsonOptional(varJson, response.namedVariables, "namedVariables");
+    SetJsonOptional(varJson, response.indexedVariables, "indexedVariables");
     json["body"] = varJson;
     return json;
 }
@@ -544,15 +548,15 @@ template <> std::optional<json_t> Dap::Protocol::ToResponseJson<EvaluateResponse
     SetResponseJsonBaseInfo(response, json);
     json["body"]["result"] = response.result;
     json["body"]["variablesReference"] = response.variablesReference;
-    SET_JSON_OPTIONAL(json["body"]["type"], response.resultType)
+    SetJsonOptional(json, response.resultType, "body", "type");
     if (response.presentationHint.has_value()) {
-        SET_JSON_OPTIONAL(json["body"]["presentationHint"],
-            GetTypeJson<VariablePresentationHint>(response.presentationHint.value()))
+        SetJsonOptional(json, GetTypeJson<VariablePresentationHint>(response.presentationHint.value()),
+            "body", "presentationHint");
     }
-    SET_JSON_OPTIONAL(json["body"]["namedVariables"], response.namedVariables)
-    SET_JSON_OPTIONAL(json["body"]["indexedVariables"], response.indexedVariables)
-    SET_JSON_OPTIONAL(json["body"]["memoryReference"], response.memoryReference)
-    SET_JSON_OPTIONAL(json["body"]["memoryAddress"], response.memoryAddress)
+    SetJsonOptional(json, response.namedVariables, "body", "namedVariables");
+    SetJsonOptional(json, response.indexedVariables, "body", "indexedVariables");
+    SetJsonOptional(json, response.memoryReference, "body", "memoryReference");
+    SetJsonOptional(json, response.memoryAddress, "body", "memoryAddress");
 
     if (CommonUtils::JsonDump(json).empty() && CommonUtils::JsonDump(json["body"]["result"]).empty()) {
         LOG_ERROR("can not get value");
@@ -563,7 +567,7 @@ template <> std::optional<json_t> Dap::Protocol::ToResponseJson<EvaluateResponse
     return json;
 }
 
-template<>
+template <>
 std::optional<json_t> Dap::Protocol::ToResponseJson<DebugInConsoleResponse>(const DebugInConsoleResponse &response)
 {
     json_t json;
@@ -572,34 +576,34 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<DebugInConsoleResponse>(cons
     return json;
 }
 
-template<>
+template <>
 std::optional<json_t> Dap::Protocol::ToResponseJson<SourceResponse>(const SourceResponse &response)
 {
     json_t json;
     SetResponseJsonBaseInfo(response, json);
     json["body"]["content"] = response.content;
-    SET_JSON_OPTIONAL(json["body"]["mimeType"], response.mimeType);
+    SetJsonOptional(json, response.mimeType, "body", "mimeType");
     return json;
 }
 
-template<>
+template <>
 std::optional<json_t> Dap::Protocol::ToResponseJson<ReadMemoryResponse>(const ReadMemoryResponse &response)
 {
     json_t json;
     SetResponseJsonBaseInfo(response, json);
     json["body"]["address"] = response.address;
-    SET_JSON_OPTIONAL(json["body"]["unreadableBytes"], response.unreadableBytes);
-    SET_JSON_OPTIONAL(json["body"]["data"], response.data);
+    SetJsonOptional(json, response.unreadableBytes, "body", "unreadableBytes");
+    SetJsonOptional(json, response.data, "body", "data");
     return json;
 }
 
-template<>
+template <>
 std::optional<json_t> Dap::Protocol::ToResponseJson<WriteMemoryResponse>(const WriteMemoryResponse &response)
 {
     json_t json;
     SetResponseJsonBaseInfo(response, json);
-    SET_JSON_OPTIONAL(json["body"]["offset"], response.offset);
-    SET_JSON_OPTIONAL(json["body"]["bytesWritten"], response.bytesWritten);
+    SetJsonOptional(json, response.offset, "body", "offset");
+    SetJsonOptional(json, response.bytesWritten, "body", "bytesWritten");
     return json;
 }
 
@@ -641,7 +645,7 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<RecordPointsResponse>(const 
         point["dateTimeStamp"] = it.dateTimeStamp;
         point["timeStamp"] = it.timeStamp;
         point["type"] = it.reason;
-        SET_JSON_OPTIONAL(point["coroutineId"], it.coroutineId);
+        SetJsonOptional(point, it.coroutineId, "coroutineId");
         json["body"]["recordPoints"].push_back(point);
     }
     return json;
@@ -672,7 +676,7 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<SetExecutionPointResponse>(
     return json;
 }
 
-template<>
+template <>
 std::optional<json_t> Dap::Protocol::ToResponseJson<ContinueInReverseResponse>(
     const ContinueInReverseResponse &response)
 {
@@ -687,6 +691,22 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<StepInReverseResponse>(const
     json_t json;
     SetResponseJsonBaseInfo(response, json);
     return json;
+}
+
+template <typename T>
+void SetOptionalVariablesJson(json_t &recordMessage, const std::string &fieldName,
+    const std::optional<std::vector<T>> &variables)
+{
+    if (!variables.has_value()) {
+        return;
+    }
+    recordMessage[fieldName] = json_t::array();
+    for (const auto &variable : variables.value()) {
+        auto variableJson = GetTypeJson(variable);
+        if (variableJson.has_value()) {
+            recordMessage[fieldName].push_back(variableJson.value());
+        }
+    }
 }
 
 template <>
@@ -708,42 +728,10 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<RecordMessageResponse>(const
                 recordMessage["stackFrame"] = stackFrameJson.value();
             }
         }
-        if (it.localVariables.has_value()) {
-            recordMessage["localVariables"] = json_t::array();
-            for (const auto &var : it.localVariables.value()) {
-                auto varJson = GetTypeJson(var);
-                if (varJson.has_value()) {
-                    recordMessage["localVariables"].push_back(varJson.value());
-                }
-            }
-        }
-        if (it.globalVariables.has_value()) {
-            recordMessage["globalVariables"] = json_t::array();
-            for (const auto &var : it.globalVariables.value()) {
-                auto varJson = GetTypeJson(var);
-                if (varJson.has_value()) {
-                    recordMessage["globalVariables"].push_back(varJson.value());
-                }
-            }
-        }
-        if (it.staticVariables.has_value()) {
-            recordMessage["staticVariables"] = json_t::array();
-            for (const auto &var : it.staticVariables.value()) {
-                auto varJson = GetTypeJson(var);
-                if (varJson.has_value()) {
-                    recordMessage["staticVariables"].push_back(varJson.value());
-                }
-            }
-        }
-        if (it.monitorVariables.has_value()) {
-            recordMessage["monitorVariables"] = json_t::array();
-            for (const auto &var : it.monitorVariables.value()) {
-                auto varJson = GetTypeJson(var);
-                if (varJson.has_value()) {
-                    recordMessage["monitorVariables"].push_back(varJson.value());
-                }
-            }
-        }
+        SetOptionalVariablesJson(recordMessage, "localVariables", it.localVariables);
+        SetOptionalVariablesJson(recordMessage, "globalVariables", it.globalVariables);
+        SetOptionalVariablesJson(recordMessage, "staticVariables", it.staticVariables);
+        SetOptionalVariablesJson(recordMessage, "monitorVariables", it.monitorVariables);
         json["body"]["recordMessages"].push_back(recordMessage);
     }
     return json;
@@ -765,12 +753,12 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<GetBitmapResponse>(const Get
     json["body"]["height"] = response.bitmap.height;
     json["body"]["format"]["colorFormat"] = response.bitmap.format.colorFormat;
     json["body"]["format"]["alphaFormat"] = response.bitmap.format.alphaFormat;
-    SET_JSON_OPTIONAL(json["body"]["size"], response.bitmap.size)
-    SET_JSON_OPTIONAL(json["body"]["data"], response.bitmap.data)
+    SetJsonOptional(json, response.bitmap.size, "body", "size");
+    SetJsonOptional(json, response.bitmap.data, "body", "data");
     return json;
 }
 
-template<>
+template <>
 std::optional<json_t> Dap::Protocol::ToResponseJson<LoadModulesResponse>(const LoadModulesResponse &response)
 {
     json_t json;
@@ -789,7 +777,7 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<LoadModulesResponse>(const L
     return json;
 }
 
-template<>
+template <>
 std::optional<json_t> Dap::Protocol::ToResponseJson<AddSourceMappingResponse>(const AddSourceMappingResponse &response)
 {
     json_t json;
@@ -808,7 +796,7 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<AddSourceMappingResponse>(co
     return json;
 }
 
-template<>
+template <>
 std::optional<json_t> Dap::Protocol::ToResponseJson<ResetSourceMappingResponse>(
     const ResetSourceMappingResponse &response)
 {
@@ -824,7 +812,7 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<ResetSourceMappingResponse>(
     return json;
 }
 
-template<>
+template <>
 std::optional<json_t> Dap::Protocol::ToResponseJson<VariableHexViewResponse>(const VariableHexViewResponse &response)
 {
     json_t json;
@@ -832,7 +820,7 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<VariableHexViewResponse>(con
     return json;
 }
 
-template<>
+template <>
 std::optional<json_t> Dap::Protocol::ToResponseJson<CommandCompletionResponse>(
     const CommandCompletionResponse &response)
 {
@@ -843,7 +831,7 @@ std::optional<json_t> Dap::Protocol::ToResponseJson<CommandCompletionResponse>(
     for (const auto &obj : response.objects) {
         json_t jsonObj = json_t::object();
         jsonObj["command"] = obj.command;
-        SET_JSON_OPTIONAL(jsonObj["alias"], obj.alias);
+        SetJsonOptional(jsonObj, obj.alias, "alias");
         jsonObj["spec"] = obj.spec;
         json["body"]["objects"].push_back(jsonObj);
     }

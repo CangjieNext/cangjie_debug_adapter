@@ -800,7 +800,7 @@ void LLDBApiEventHandler::GetBreakPointInfo(const lldb::SBBreakpoint &sbBreakpoi
     if (loadAddress == LLDB_INVALID_ADDRESS) {
         loadAddress = sbAddress.GetFileAddress();
     }
-    string addr = CommonUtils::Dec2HexAddress(loadAddress, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU);
+    string addr = CommonUtils::Dec2HexAddress(loadAddress, CommonUtils::hexAddressWidth64BitsCpu);
 
     string unKnown = "??";
     string filePath = unKnown;
@@ -851,7 +851,7 @@ void LLDBApiEventHandler::GetWatchPointInfo(const lldb::SBWatchpoint &sbWatchpoi
     breakpointEventBody.breakpoint.message = DATA_BREAKPOINT;
     lldb::addr_t watchAddress = rWatchpoint.GetWatchAddress();
     string addr = watchAddress != LLDB_INVALID_ADDRESS ?
-                  CommonUtils::Dec2HexAddress(watchAddress, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU) : "-";
+                  CommonUtils::Dec2HexAddress(watchAddress, CommonUtils::hexAddressWidth64BitsCpu) : "-";
     breakpointEventBody.breakpoint.instructionReference = addr;
     int size = rWatchpoint.GetWatchSize();
     string dataId = std::to_string(watchAddress) + "/" + std::to_string(size);

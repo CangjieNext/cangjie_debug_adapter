@@ -22,11 +22,11 @@ enum class TrimType : int {
 };
 
 #if defined __thumb__
-    constexpr static int INSTRUCTION_BYTES = 2;
+inline constexpr int INSTRUCTION_BYTES = 2;
 #elif (defined __aarch64__) || (defined __arm__)
-    constexpr static int INSTRUCTION_BYTES = 4;
+inline constexpr int INSTRUCTION_BYTES = 4;
 #else // cpu architecture with variable instruction length, like x86_64
-    constexpr static int INSTRUCTION_BYTES = 8;
+inline constexpr int INSTRUCTION_BYTES = 8;
 #endif
 
 class CommonUtils {
@@ -46,8 +46,8 @@ public:
     static std::vector<std::string> GetFilesToBeDeleted(const std::string &folder, const std::string &start,
                                              const std::string &ext, const float &limitDays, const int &limitNums);
     static void DeleteObsoleteLogs(const std::string &logPath, const std::string &start = "dap_server",
-                                   const std::string &ext = "log", const float &limitDays = LIMIT_DAYS,
-                                   const int &limitFileNums = LIMIT_FILE_NUMBERS);
+                                   const std::string &ext = "log", const float &maxDays = limitDays,
+                                   const int &maxFileNums = limitFileNumbers);
 
     // directory
     static bool IsFolderExist(const std::string &folderPath);
@@ -72,7 +72,7 @@ public:
     // Verifying the Validity of a Numeric Character String
     // param isInt64:  true: int64, false: int32
     static bool IsValidInteger(const std::string &str, bool isInt64 = false);
-    static bool IsValidHexInteger(const std::string &src, int maxLength = HEX_32_BITS_STRING_LENGTH);
+    static bool IsValidHexInteger(const std::string &src, int maxLength = hex32BitsStringLength);
     // if the text is all valid alpha and numeric characters
     static bool IsValidAlphaAndNumeric(const char *pText);
 
@@ -82,7 +82,7 @@ public:
 
     // converts strings to integers securely, if the conversion fails, the integer remains unchanged.
     static bool StringToInt(const std::string &str, int &integer);
-    static bool StringToIntExt(const std::string &str, int &integer, int maxLength = HEX_32_BITS_STRING_LENGTH);
+    static bool StringToIntExt(const std::string &str, int &integer, int maxLength = hex32BitsStringLength);
     static bool StringToLongLong(const std::string &str, int64_t &integer);
     static bool HexStringToUnsignedLongLong(const std::string &src, uint64_t &ull);
     // converts HEX strings to char, if the conversion fails, the char remains unchanged.
@@ -92,7 +92,7 @@ public:
     // converts escape Char strings to char, if the conversion fails, the char remains unchanged.
     static bool ReverseEscapeChar(const std::string &escapeStr, signed char &res);
     // translate integer from dec to hex
-    static std::string Dec2HexAddress(unsigned long long i, int hexWidth = HEX_ADDRESS_WIDTH_64_BITS_CPU,
+    static std::string Dec2HexAddress(unsigned long long i, int hexWidth = hexAddressWidth64BitsCpu,
                                       bool uppercase = false);
     static std::string FormatCharPointer(const char *input, int outputWidth,
                                          char outputFill = ' ', bool fillRight = false);
@@ -125,16 +125,16 @@ public:
     // Anonymize sensitive information for harmony
     static std::string AnonymizeRemoteAddress(const std::string &remoteAddress);
 
-    constexpr static int HEX_ADDRESS_WIDTH_64_BITS_CPU = 16;
-    constexpr static int HEX_ADDRESS_WIDTH_32_BITS_CPU = 8;
-    constexpr static int HEX_ADDRESS_WIDTH_16_BITS_CPU = 4;
-    constexpr static int HEX_64_BITS_STRING_LENGTH = 16;
-    constexpr static int HEX_32_BITS_STRING_LENGTH = 8;
-    constexpr static int BASE_16 = 16;
-    constexpr static int MAX_UNSIGNED_CHAR = 255;
-    constexpr static int BUFFER_SIZE = 1024;
-    constexpr static float LIMIT_DAYS = 3.0f;
-    constexpr static int LIMIT_FILE_NUMBERS = 500;
+    static constexpr int hexAddressWidth64BitsCpu = 16;
+    static constexpr int hexAddressWidth32BitsCpu = 8;
+    static constexpr int hexAddressWidth16BitsCpu = 4;
+    static constexpr int hex64BitsStringLength = 16;
+    static constexpr int hex32BitsStringLength = 8;
+    static constexpr int BASE_16 = 16;
+    static constexpr int maxUnsignedChar = 255;
+    static constexpr int bufferSize = 1024;
+    static constexpr float limitDays = 3.0f;
+    static constexpr int limitFileNumbers = 500;
 
 private:
     CommonUtils() = default;
