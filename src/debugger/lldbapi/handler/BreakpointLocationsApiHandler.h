@@ -21,14 +21,21 @@ public:
 
 protected:
     std::vector<Protocol::BreakpointLocation> GenBreakpointLocations();
+    lldb::SBAddress ResolveStartSBAddress();
+    bool ShouldSkipLocation(const Protocol::BreakpointLocation &location,
+                            const lldb::SBAddress &sbAddress,
+                            const std::vector<Protocol::BreakpointLocation> &locations);
     bool LocationIsValid(const Protocol::BreakpointLocation &location, const std::string& inc = "");
     std::string GetIncOfSBAddress(const lldb::SBAddress& sbAddress);
-    lldb::SBAddress GetSBAddressByLocation(const std::string &filePath, int line, int column = -1);
+    lldb::SBAddress GetSBAddressByLocation(const std::string &filePath, int64_t line, int64_t column = -1);
     Protocol::BreakpointLocation GenBkptLocationOfSBAddress(lldb::SBAddress sbAddress);
 
     const std::set<std::string> stepInInc = { "bl", "blr", "blx", "BL", "BLR", "BLX" };
     bool filterStepinLocation = false;
     int64_t proLine = 0; // cache line number of last instruction code to adapt line number follow
+    Protocol::BreakpointLocation firstLocation;
+    int64_t endLine = 0;
+    int64_t endColumn = -1;
 };
 }
 

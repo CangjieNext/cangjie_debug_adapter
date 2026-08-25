@@ -5,6 +5,7 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 #include "BreakpointLocationsApiHandler.h"
+#include <limits>
 #include "DapLog.h"
 
 using namespace std;
@@ -21,9 +22,13 @@ Dap::UniqueResponsePtr Dap::BreakpointLocationsApiHandler::HandleRequest(Dap::Un
         return debugger->CompleteFailureResponse(std::make_unique<BreakpointLocationsResponse>(),
             error,  Protocol::SEQ_INVALID);
     }
+    if (!req->arguments.has_value()) {
+        std::string error = "ERROR: BreakpointLocationsRequest arguments are missing.";
+        return debugger->CompleteFailureResponse(std::make_unique<BreakpointLocationsResponse>(),
+            error, currentRequest->seq);
+    }
 
-    filterStepinLocation = req->arguments->filterStepinLocation.has_value() &&
-        req->arguments->filterStepinLocation.value();
+    filterStepinLocation = req->arguments->filterStepinLocation.value_or(false);
     proLine = 0;
 
     std::vector<Dap::Protocol::BreakpointLocation> locations =  GenBreakpointLocations();
@@ -37,53 +42,47 @@ Dap::UniqueResponsePtr Dap::BreakpointLocationsApiHandler::HandleRequest(Dap::Un
 vector<BreakpointLocation> BreakpointLocationsApiHandler::GenBreakpointLocations()
 {
     auto req = dynamic_cast<BreakpointLocationsRequest*>(currentRequest.get());
-    SBAddress sbAddress;
-    SBTarget target = debugger->GetSbTarget();
-    if (req->arguments->startAddress.has_value()) {
-        lldb::addr_t address;
-        if (CommonUtils::HexStringToUnsignedLongLong(req->arguments->startAddress.value(), address)) {
-            sbAddress = SBAddress(address, target);
-        }
-    } else {
-        sbAddress = this->GetSBAddressByLocation(req->arguments->source.path.value(), req->arguments->line);
-    }
+    SBAddress sbAddress = ResolveStartSBAddress();
     if (!sbAddress.IsValid()) {
         return {};
     }
+    lldb::addr_t currentAddress = sbAddress.GetLoadAddress(debugger->GetSbTarget());
+    if (currentAddress == LLDB_INVALID_ADDRESS) {
+        return {};
+    }
     std::vector<Dap::Protocol::BreakpointLocation> locations;
-    BreakpointLocation firstLocation = GenBkptLocationOfSBAddress(sbAddress);
+    firstLocation = GenBkptLocationOfSBAddress(sbAddress);
     // check whether startAddress is the first address of the location
-    SBAddress firstAddress = GetSBAddressByLocation(req->arguments->source.path.value(), firstLocation.line,
-        firstLocation.column.value());
-    if (LocationIsValid(firstLocation, this->GetIncOfSBAddress(sbAddress)) &&
-        firstAddress.GetLoadAddress(debugger->GetSbTarget()) == sbAddress.GetLoadAddress(debugger->GetSbTarget())) {
-        locations.push_back(firstLocation);
+    if (firstLocation.column.has_value() && req->arguments->source.path.has_value() &&
+        LocationIsValid(firstLocation, this->GetIncOfSBAddress(sbAddress))) {
+        SBAddress firstAddress = GetSBAddressByLocation(req->arguments->source.path.value(), firstLocation.line,
+            firstLocation.column.value());
+        if (firstAddress.GetLoadAddress(debugger->GetSbTarget()) == sbAddress.GetLoadAddress(debugger->GetSbTarget())) {
+            locations.push_back(firstLocation);
+        }
     }
 
-    const int readIncNum = 2;
-    int64_t endLine = req->arguments->endLine.has_value() ? req->arguments->endLine.value() : req->arguments->line;
-    int64_t endColumn = req->arguments->endColumn.has_value() ? req->arguments->endColumn.value(): -1;
+    constexpr uint32_t readInstructionCount = 2;
+    endLine = req->arguments->endLine.has_value() ? req->arguments->endLine.value() : req->arguments->line;
+    endColumn = req->arguments->endColumn.has_value() ? req->arguments->endColumn.value(): -1;
 
-    while (true) {
+    while (sbAddress.IsValid()) {
         // Reads assembly code from the starting position until out of range or failure
-        SBInstructionList sbInstructionList = target.ReadInstructions(sbAddress, readIncNum);
-        sbAddress = sbInstructionList.GetInstructionAtIndex(1).GetAddress();
-        if (!sbAddress.IsValid()) {
+        SBInstructionList sbInstructionList = debugger->GetSbTarget().ReadInstructions(sbAddress, readInstructionCount);
+        if (sbInstructionList.GetSize() < readInstructionCount) {
             LOG_INFO("read instruction error.");
             break;
         }
+        SBAddress nextAddress = sbInstructionList.GetInstructionAtIndex(1).GetAddress();
+        lldb::addr_t nextLoadAddress = nextAddress.GetLoadAddress(debugger->GetSbTarget());
+        if (!nextAddress.IsValid() || nextLoadAddress == LLDB_INVALID_ADDRESS || nextLoadAddress <= currentAddress) {
+            LOG_INFO("instruction address did not advance.");
+            break;
+        }
+        sbAddress = nextAddress;
+        currentAddress = nextLoadAddress;
         BreakpointLocation location = GenBkptLocationOfSBAddress(sbAddress);
-        if (location.line > endLine) {
-            break;
-        } else if (endColumn != -1 && location.line == endLine && location.column > endColumn) {
-            break;
-        } else if (firstLocation.line == location.line && firstLocation.column == location.column) {
-            continue;
-        } else if (!LocationIsValid(location, this->GetIncOfSBAddress(sbAddress))) {
-            continue;
-        } else if (locations.end() != std::find_if(locations.begin(), locations.end(),
-            [&](const BreakpointLocation& x) { return x.line == location.line && x.column == location.column; })) {
-            // Do not store the redundant location, different assembly code may be mapped to the same row and column.
+        if (ShouldSkipLocation(location, sbAddress, locations)) {
             continue;
         }
         locations.emplace_back(location);
@@ -91,32 +90,80 @@ vector<BreakpointLocation> BreakpointLocationsApiHandler::GenBreakpointLocations
     return locations;
 }
 
-SBAddress BreakpointLocationsApiHandler::GetSBAddressByLocation(const string &filePath, int line, int column)
+SBAddress BreakpointLocationsApiHandler::ResolveStartSBAddress()
+{
+    auto req = dynamic_cast<BreakpointLocationsRequest*>(currentRequest.get());
+    SBAddress sbAddress;
+    if (req->arguments->startAddress.has_value()) {
+        lldb::addr_t address;
+        if (CommonUtils::HexStringToUnsignedLongLong(req->arguments->startAddress.value(), address)) {
+            sbAddress = SBAddress(address, debugger->GetSbTarget());
+        }
+    } else if (req->arguments->source.path.has_value()) {
+        sbAddress = this->GetSBAddressByLocation(req->arguments->source.path.value(), req->arguments->line);
+    }
+    return sbAddress;
+}
+
+bool BreakpointLocationsApiHandler::ShouldSkipLocation(const BreakpointLocation &location,
+    const SBAddress &sbAddress, const std::vector<BreakpointLocation> &locations)
+{
+    if (location.line > endLine) {
+        return true;
+    }
+    if (endColumn != -1 && location.line == endLine && location.column.value_or(-1) > endColumn) {
+        return true;
+    }
+    if (firstLocation.line == location.line && firstLocation.column == location.column) {
+        return true;
+    }
+    if (!LocationIsValid(location, this->GetIncOfSBAddress(sbAddress))) {
+        return true;
+    }
+    if (locations.end() != std::find_if(locations.begin(), locations.end(),
+        [&](const BreakpointLocation& x) { return x.line == location.line && x.column == location.column; })) {
+        // Do not store the redundant location, different assembly code may be mapped to the same row and column.
+        return true;
+    }
+    return false;
+}
+
+SBAddress BreakpointLocationsApiHandler::GetSBAddressByLocation(const string &filePath, int64_t line, int64_t column)
 {
     // Obtain the corresponding address based on the source code path and line number:
     // Set a breakpoint, obtain the breakpoint address, then delete the breakpoint.
     SBAddress sbAddress;
     SBBreakpoint sbBreakpoint;
     SBTarget sbTarget = debugger->GetSbTarget();
-    line = line + (debugger->GetOption().linesStartAt1 ? 0 : 1);
-    column = column + (debugger->GetOption().columnsStartAt1 ? 0 : 1);
-    if (column > 0) {
+    int64_t lineOffset = debugger->GetOption().linesStartAt1 ? 0 : 1;
+    int64_t columnOffset = debugger->GetOption().columnsStartAt1 ? 0 : 1;
+    if (line < 0 || line > std::numeric_limits<uint32_t>::max() - lineOffset ||
+        column > std::numeric_limits<uint32_t>::max() - columnOffset) {
+        return sbAddress;
+    }
+    uint32_t adaptedLine = static_cast<uint32_t>(line + lineOffset);
+    if (adaptedLine == 0) {
+        return sbAddress;
+    }
+    int64_t adaptedColumn = column + columnOffset;
+    if (adaptedColumn > 0) {
         SBFileSpecList sbFileSpecList;
         SBFileSpec sbFileSpec(filePath.c_str());
-        sbBreakpoint = sbTarget.BreakpointCreateByLocation(sbFileSpec, line, column, 0, sbFileSpecList);
+        sbBreakpoint = sbTarget.BreakpointCreateByLocation(sbFileSpec, adaptedLine,
+            static_cast<uint32_t>(adaptedColumn), 0, sbFileSpecList);
     } else {
-        sbBreakpoint =sbTarget.BreakpointCreateByLocation(filePath.c_str(), line);
+        sbBreakpoint = sbTarget.BreakpointCreateByLocation(filePath.c_str(), adaptedLine);
     }
 
     if (!sbBreakpoint.IsValid()) {
         return sbAddress;
     }
-    SBBreakpointLocation location = sbBreakpoint.GetLocationAtIndex(0);
-    sbTarget.BreakpointDelete(sbBreakpoint.GetID());
-    if (!location.IsValid()) {
+    if (sbBreakpoint.GetNumLocations() == 0) {
+        sbTarget.BreakpointDelete(sbBreakpoint.GetID());
         return sbAddress;
     }
-    sbAddress = location.GetAddress();
+    sbAddress = sbBreakpoint.GetLocationAtIndex(0).GetAddress();
+    sbTarget.BreakpointDelete(sbBreakpoint.GetID());
     return sbAddress;
 }
 
@@ -156,16 +203,17 @@ bool BreakpointLocationsApiHandler::LocationIsValid(const BreakpointLocation &lo
     int64_t endLine = req->arguments->endLine.has_value()? req->arguments->endLine.value() : startLine;
     int64_t startColumn = req->arguments->column.has_value()? req->arguments->column.value() : -1;
     int64_t endColumn = req->arguments->endColumn.has_value()? req->arguments->endColumn.value() : -1;
+    int64_t locationColumn = location.column.value_or(-1);
     if (location.line < startLine) {
         return false;
     }
     if (location.line > endLine) {
         return false;
     }
-    if (location.line == startLine && location.column < startColumn) {
+    if (location.line == startLine && locationColumn < startColumn) {
         return false;
     }
-    if (endColumn != -1 && location.line == endLine && location.column > endColumn) {
+    if (endColumn != -1 && location.line == endLine && locationColumn > endColumn) {
         return false;
     }
     if (filterStepinLocation) {

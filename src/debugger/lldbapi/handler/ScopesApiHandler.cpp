@@ -30,8 +30,9 @@ UniqueResponsePtr ScopesApiHandler::HandleRequest(UniqueRequestPtr request)
     bool cjThreadSelected = false;
     if (debugger->GetOption().OhosCangjieDebug()) {
         ContainerInfo frameInfo = debugger->GetContainerManager().GetContainerInfo(curFrameId);
-        if (frameInfo.threadId != -1 && debugger->GetCjThreadIndexById(frameInfo.threadId).value()) {
-            SBCJThread cjThread = process.GetCJThreadAtIndex(debugger->GetCjThreadIndexById(frameInfo.threadId).value());
+        auto cjThreadIndex = debugger->GetCjThreadIndexById(frameInfo.threadId);
+        if (frameInfo.threadId != -1 && cjThreadIndex.has_value()) {
+            SBCJThread cjThread = process.GetCJThreadAtIndex(cjThreadIndex.value());
             if (cjThread.IsValid() && process.SetSelectedCJThread(cjThread)) {
                 cjThreadSelected = true;
             }

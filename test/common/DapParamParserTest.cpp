@@ -14,11 +14,18 @@ using namespace std;
 
 class DapParamParserTest : public CommonSuite {
 protected:
-    virtual void SetUp()
+    static constexpr int testPort = 9995;
+    static constexpr size_t overlongPathLength = 261;
+    static constexpr int defaultLogSize = 32;
+    static constexpr int testLogSize = 1024;
+    static constexpr int invalidPort = -1;
+    static constexpr const char *invalidLogPath = "1234";
+
+    void SetUp() override
     {
         DapParamParser::Instance().Clear();
     }
-    virtual void TearDown() {}
+    void TearDown() override {}
 };
 
 TEST_F(DapParamParserTest, ParseDebugOption_params_one)
@@ -31,7 +38,9 @@ TEST_F(DapParamParserTest, ParseDebugOption_params_one)
 
 TEST_F(DapParamParserTest, ParseDebugOption_link_type_error)
 {
-    std::vector<std::string> args = { "--port=-1", "--link=socket"};
+    std::vector<std::string> args = {
+        DapParamParser::SYMBOL_PORT + std::to_string(invalidPort), "--link=socket"
+    };
     Option option;
     bool result = DapParamParser::Instance().ParseDebugOption(args, option);
     string error = DapParamParser::Instance().Error();
@@ -41,7 +50,9 @@ TEST_F(DapParamParserTest, ParseDebugOption_link_type_error)
 
 TEST_F(DapParamParserTest, ParseDebugOption_log_path_error)
 {
-    std::vector<std::string> args = { "--port=9995", "--logpath=*:\\?"};
+    std::vector<std::string> args = {
+        DapParamParser::SYMBOL_PORT + std::to_string(testPort), "--logpath=*:\\?"
+    };
     Option option;
     bool result = DapParamParser::Instance().ParseDebugOption(args, option);
     string error = DapParamParser::Instance().Error();
@@ -51,25 +62,25 @@ TEST_F(DapParamParserTest, ParseDebugOption_log_path_error)
 
 TEST_F(DapParamParserTest, GetPort)
 {
-    string data = "--port=-1";
+    string data = DapParamParser::SYMBOL_PORT + std::to_string(invalidPort);
     DapParamParser::Instance().ParseField(data);
     int result = DapParamParser::Instance().GetPort();
     string error = DapParamParser::Instance().Error();
-    EXPECT_EQ(result, -1);
+    EXPECT_EQ(result, invalidPort);
     EXPECT_FALSE(error.empty());
 }
 
 TEST_F(DapParamParserTest, GetPort_1)
 {
-    string data = "--port=9995";
+    string data = DapParamParser::SYMBOL_PORT + std::to_string(testPort);
     DapParamParser::Instance().ParseField(data);
     int result = DapParamParser::Instance().GetPort();
-    EXPECT_EQ(result, 9995);
+    EXPECT_EQ(result, testPort);
 }
 
 TEST_F(DapParamParserTest, GetLogPath)
 {
-    string data = "--logpath=1234";
+    string data = std::string(DapParamParser::SYMBOL_LOG_PATH) + invalidLogPath;
     DapParamParser::Instance().ParseField(data);
     string result = DapParamParser::Instance().GetLogPath();
     string error = DapParamParser::Instance().Error();
@@ -102,8 +113,8 @@ TEST_F(DapParamParserTest, ErrorPath)
 
 TEST_F(DapParamParserTest, ErrorPath_2)
 {
-    string Addr(261, 'a');
-    string data = "--logpath=D:/" + Addr;
+    string overlongPath(overlongPathLength, 'a');
+    string data = "--logpath=D:/" + overlongPath;
     bool result = DapParamParser::Instance().ParseField(data);
     string error = DapParamParser::Instance().Error();
     EXPECT_EQ(result, false);
@@ -163,19 +174,18 @@ TEST_F(DapParamParserTest, LogLevel)
 
 TEST_F(DapParamParserTest, LogSize)
 {
-    const int size = 32;
     int result = DapParamParser::Instance().GetLogSize();
-    EXPECT_EQ(result, size);
+    EXPECT_EQ(result, defaultLogSize);
 
-    string data = "--logsize=-1";
+    string data = DapParamParser::SYMBOL_LOG_SIZE + std::to_string(invalidPort);
     bool flag = DapParamParser::Instance().ParseField(data);
     result = DapParamParser::Instance().GetLogSize();
     EXPECT_FALSE(flag);
-    EXPECT_EQ(result, size);
+    EXPECT_EQ(result, defaultLogSize);
 
-    data = "--logsize=1024";
+    data = DapParamParser::SYMBOL_LOG_SIZE + std::to_string(testLogSize);
     flag = DapParamParser::Instance().ParseField(data);
     result = DapParamParser::Instance().GetLogSize();
     EXPECT_TRUE(flag);
-    EXPECT_EQ(result, 1024);
+    EXPECT_EQ(result, testLogSize);
 }

@@ -211,7 +211,7 @@ Variable VariablesApiHandler::GenerateVariable(SBValue &sbValue)
     valueParser.GetValue(variable.value);
     string evaluateName = debugger->GetContainerManager().GetExprOfVarRef(curVariableRef);
     lldb::addr_t varAddress = sbValue.GetLoadAddress();
-    variable.memoryAddress = CommonUtils::Dec2HexAddress(varAddress, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU);
+    variable.memoryAddress = CommonUtils::Dec2HexAddress(varAddress, CommonUtils::hexAddressWidth64BitsCpu);
     if (sbValue.GetTypeName() == nullptr || variable.name != sbValue.GetTypeName()) {
         if (!evaluateName.empty() && !variable.name.empty() && variable.name.at(0) != '[') {
             evaluateName = evaluateName + ".";

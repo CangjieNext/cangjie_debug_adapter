@@ -7,6 +7,7 @@
 #include <regex>
 #include <fstream>
 #include <cstdlib>
+#include <climits>
 #include <sys/stat.h>
 #ifdef CROSS_WINDOWS_FLAG
 #include <unistd.h>
@@ -378,21 +379,20 @@ vector<string> CommonUtils::SplitString(const string &str, const string &delimit
     }
 
     string extendStr = str + delimiter;
-    std::size_t pos;
-    std::size_t size = extendStr.size();
-
-    for (std::size_t currentPos = 0; currentPos < size; currentPos++) {
-        pos = extendStr.find(delimiter, currentPos);
-        if (pos != string::npos) {
-            string s = extendStr.substr(currentPos, pos - currentPos);
-            if (!s.empty() && remainDeli) {
-                s += delimiter;
-            }
-            if (!s.empty()) {
-                result.push_back(s);
-            }
-            currentPos = pos + delimiter.size() - 1;
+    std::size_t currentPos = 0;
+    while (currentPos < extendStr.size()) {
+        std::size_t pos = extendStr.find(delimiter, currentPos);
+        if (pos == string::npos) {
+            break;
         }
+        string s = extendStr.substr(currentPos, pos - currentPos);
+        if (!s.empty() && remainDeli) {
+            s += delimiter;
+        }
+        if (!s.empty()) {
+            result.push_back(s);
+        }
+        currentPos = pos + delimiter.size();
     }
     return result;
 }
@@ -514,16 +514,12 @@ int CommonUtils::GetCurrentPid()
 
 std::string CommonUtils::JsonDump(const nlohmann::json &json)
 {
-    const int indendedNum = 4;
+    constexpr int indentWidth = 4;
     std::string res;
     try {
-        res = json.dump(indendedNum);
-    } catch (nlohmann::json::type_error &err) {
-        LOG_ERROR("json dump type error, what: ", err.what());
-    } catch (nlohmann::json::parse_error &err) {
-        LOG_ERROR("json dump parse error, what: ", err.what());
-    } catch (nlohmann::json::other_error &err) {
-        LOG_ERROR("json dump other error, what: ", err.what());
+        res = json.dump(indentWidth);
+    } catch (const nlohmann::json::exception &err) {
+        LOG_ERROR("json dump error, what: ", err.what());
     } catch (...) {
         LOG_ERROR("json dump unknown error.");
     }
@@ -580,24 +576,25 @@ bool CommonUtils::NormalizeFilePath(string &filePath, string &errorMsg)
 {
 #ifdef _WIN32
     filePath = CommonUtils::ReplaceString(filePath, "/", "\\");
-#endif
     if (filePath.length() > PATH_MAX) {
         errorMsg = "path is too long!";
         return false;
     }
     char realPath[PATH_MAX + 1] = { 0x00 };
-#ifdef _WIN32
     if (PathCanonicalize(realPath, filePath.c_str()) == FALSE) {
         errorMsg = "path is illegal!";
         return false;
     }
+    filePath = std::string(realPath);
 #else
-    if (realpath(filePath.c_str(), realPath) == nullptr) {
+    char realPathBuf[PATH_MAX];
+    char *result = realpath(filePath.c_str(), realPathBuf);
+    if (result == nullptr) {
         errorMsg = "path does not exist or is illegal!";
         return false;
     }
+    filePath = std::string(realPathBuf);
 #endif
-    filePath = std::string(realPath);
     return true;
 }
 
@@ -621,30 +618,49 @@ bool CommonUtils::IsValidAlphaAndNumeric(const char *pText)
     return true;
 }
 
+namespace {
+constexpr int INPUT_GROUP_LENGTH_ENCODE = 3;
+constexpr int OUTPUT_GROUP_LENGTH = 4;
+constexpr int SHIFT_TWO_BITS = 2;
+constexpr int SHIFT_FOUR_BITS = 4;
+constexpr int SHIFT_SIX_BITS = 6;
+constexpr unsigned char LOW_TWO_BITS_MASK = 0x03;
+constexpr unsigned char LOW_FOUR_BITS_MASK = 0x0F;
+constexpr unsigned char BASE64_INDEX_MASK = 0x3F;
+constexpr char PADDING_CHARACTER = '=';
+const std::string BASE64_TABLE = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+constexpr int FIRST_BYTE = 0;
+constexpr int SECOND_BYTE = 1;
+constexpr int THIRD_BYTE = 2;
+constexpr int FOURTH_BYTE = 3;
+
+void EncodeBase64Triple(const unsigned char in3[INPUT_GROUP_LENGTH_ENCODE],
+                        unsigned char out4[OUTPUT_GROUP_LENGTH])
+{
+    out4[FIRST_BYTE] = in3[FIRST_BYTE] >> SHIFT_TWO_BITS;
+    out4[SECOND_BYTE] = ((in3[FIRST_BYTE] & LOW_TWO_BITS_MASK) << SHIFT_FOUR_BITS) + (in3[SECOND_BYTE] >> SHIFT_FOUR_BITS);
+    out4[THIRD_BYTE] = ((in3[SECOND_BYTE] & LOW_FOUR_BITS_MASK) << SHIFT_TWO_BITS) + (in3[THIRD_BYTE] >> SHIFT_SIX_BITS);
+    out4[FOURTH_BYTE] = in3[THIRD_BYTE] & BASE64_INDEX_MASK;
+}
+} // namespace
+
 string CommonUtils::Base64Encode(const char *inputBytes, unsigned int inputLen)
 {
-    constexpr int inputCharsGroupLen = 3;
-    constexpr int outputBase64GroupLen = 4;
-    constexpr int shiftBits2 = 2;
-    constexpr int shiftBits4 = 4;
-    constexpr int shiftBits6 = 6;
+    if (inputBytes == nullptr || inputLen == 0) {
+        return "";
+    }
     int count = 0;
     string result;
-    unsigned char in3CharsGroup[3];  // 3 charactors to encode
-    unsigned char out4Base64Index[4];  // indexes of 4 encoded characters
-    const std::string base64Table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    unsigned char in3CharsGroup[INPUT_GROUP_LENGTH_ENCODE];  // 3 charactors to encode
+    unsigned char out4Base64Index[OUTPUT_GROUP_LENGTH];  // indexes of 4 encoded characters
 
     while (inputLen > 0) {
         in3CharsGroup[count++] = *(inputBytes++);  // get three bytes (24 bits)
-        if (count == inputCharsGroupLen) {
+        if (count == INPUT_GROUP_LENGTH_ENCODE) {
             // eg: 01001101, 01100001, 01101110 --> 010011, 010110, 000101, 101110
-            out4Base64Index[0] = in3CharsGroup[0] >> shiftBits2;
-            out4Base64Index[1] = ((in3CharsGroup[0] & 0x03) << shiftBits4) + (in3CharsGroup[1] >> shiftBits4);
-            out4Base64Index[2] = ((in3CharsGroup[1] & 0x0f) << shiftBits2) + (in3CharsGroup[2] >> shiftBits6);
-            out4Base64Index[3] = in3CharsGroup[2] & 0x3f;
-
-            for (int j = 0; j < outputBase64GroupLen; j++) {
-                result += base64Table[out4Base64Index[j]];
+            EncodeBase64Triple(in3CharsGroup, out4Base64Index);
+            for (int j = 0; j < OUTPUT_GROUP_LENGTH; j++) {
+                result += BASE64_TABLE[out4Base64Index[j]];
             }
             count = 0;
         }
@@ -652,67 +668,85 @@ string CommonUtils::Base64Encode(const char *inputBytes, unsigned int inputLen)
     }
 
     if (count > 0) {
-        for (int j = count; j < inputCharsGroupLen; j++) {
+        for (int j = count; j < INPUT_GROUP_LENGTH_ENCODE; j++) {
             in3CharsGroup[j] = '\0';
         }
-        out4Base64Index[0] = in3CharsGroup[0] >> shiftBits2;
-        out4Base64Index[1] = ((in3CharsGroup[0] & 0x03) << shiftBits4) + (in3CharsGroup[1] >> shiftBits4);
-        out4Base64Index[2] = ((in3CharsGroup[1] & 0x0f) << shiftBits2) + (in3CharsGroup[2] >> shiftBits6);
+        EncodeBase64Triple(in3CharsGroup, out4Base64Index);
         for (int j = 0; j < (count + 1); j++) {
-            result += base64Table[out4Base64Index[j]];
+            result += BASE64_TABLE[out4Base64Index[j]];
         }
 
-        while (count < inputCharsGroupLen) {
-            result += '=';
+        while (count < INPUT_GROUP_LENGTH_ENCODE) {
+            result += PADDING_CHARACTER;
             count++;
         }
     }
     return result;
 }
 
-string CommonUtils::Base64Decode(const string &base64Code)
+namespace {
+constexpr int INPUT_GROUP_LENGTH_DECODE = 4;
+constexpr int SECTION_LENGTH = 1000;
+constexpr unsigned char HIGH_TWO_BITS_MASK = 0x30;
+constexpr unsigned char LOW_FOUR_BITS_MASK_DECODE = 0x0F;
+constexpr unsigned char HIGH_FOUR_BITS_MASK = 0x3C;
+constexpr unsigned char LOW_TWO_BITS_MASK_DECODE = 0x03;
+constexpr int OFFSET_SECOND_CHAR = 1;
+constexpr int OFFSET_THIRD_CHAR = 2;
+constexpr int OFFSET_FOURTH_CHAR = 3;
+
+bool ValidateBase64Code(const std::string &base64Code)
 {
-    constexpr int inputBase64GroupLen = 4;
-    size_t dataLength = base64Code.length();
-    if (base64Code.empty() || dataLength % inputBase64GroupLen != 0) {
-        return "";
+    if (base64Code.empty() || base64Code.length() % INPUT_GROUP_LENGTH_DECODE != 0) {
+        return false;
     }
     regex match("^[a-zA-Z0-9+/]+={0,2}$");
-    if (!regex_match(base64Code.substr(dataLength - inputBase64GroupLen, inputBase64GroupLen), match)) {
+    if (!regex_match(base64Code.substr(base64Code.length() - INPUT_GROUP_LENGTH_DECODE, INPUT_GROUP_LENGTH_DECODE),
+                     match)) {
+        return false;
+    }
+    regex sectionMatch("^([A-Za-z0-9+/]{4})*$");
+    std::string sections = base64Code.substr(0, base64Code.length() - INPUT_GROUP_LENGTH_DECODE);
+    size_t position = 0;
+    while (position < base64Code.length() - INPUT_GROUP_LENGTH_DECODE) {
+        if (!regex_match(sections.substr(position, SECTION_LENGTH), sectionMatch)) {
+            return false;
+        }
+        position = position + SECTION_LENGTH;
+    }
+    return true;
+}
+} // namespace
+
+string CommonUtils::Base64Decode(const string &base64Code)
+{
+    if (!ValidateBase64Code(base64Code)) {
         return "";
     }
-    constexpr int sectionLength = 1000;
-    size_t position = 0;
-    regex sectionMatch("^([A-Za-z0-9+/]{4})*$");
-    string sections = base64Code.substr(0, base64Code.length() - inputBase64GroupLen);
-    while (position < dataLength - inputBase64GroupLen) {
-        if (!regex_match(sections.substr(position, sectionLength), sectionMatch)) {
-            return "";
-        }
-        position = position + sectionLength;
-    }
-    constexpr int shiftBits2 = 2;
-    constexpr int shiftBits4 = 4;
-    constexpr int shiftBits6 = 6;
-    const std::string base64Table = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    size_t dataLength = base64Code.length();
     size_t currentPos = 0;
     std::string result;
-    unsigned char in4Base64Index[4];  // indexes of 4 encoded characters
+    unsigned char in4Base64Index[INPUT_GROUP_LENGTH_DECODE];  // indexes of 4 encoded characters
     while (currentPos < dataLength) {
-        in4Base64Index[0] = base64Table.find(base64Code[currentPos]);
-        in4Base64Index[1] = base64Table.find(base64Code[currentPos + 1]);
-        in4Base64Index[2] = base64Code[currentPos + 2] != '=' ? base64Table.find(base64Code[currentPos + 2]) : 0;
-        in4Base64Index[3] = base64Code[currentPos + 3] != '=' ? base64Table.find(base64Code[currentPos + 3]) : 0;
-        result.push_back((in4Base64Index[0] << shiftBits2) + ((in4Base64Index[1] & 0x30) >> shiftBits4));
-        if (base64Code[currentPos + 2] == '=') {
+        in4Base64Index[FIRST_BYTE] = BASE64_TABLE.find(base64Code[currentPos]);
+        in4Base64Index[SECOND_BYTE] = BASE64_TABLE.find(base64Code[currentPos + OFFSET_SECOND_CHAR]);
+        in4Base64Index[THIRD_BYTE] = base64Code[currentPos + OFFSET_THIRD_CHAR] != PADDING_CHARACTER ?
+            BASE64_TABLE.find(base64Code[currentPos + OFFSET_THIRD_CHAR]) : 0;
+        in4Base64Index[FOURTH_BYTE] = base64Code[currentPos + OFFSET_FOURTH_CHAR] != PADDING_CHARACTER ?
+            BASE64_TABLE.find(base64Code[currentPos + OFFSET_FOURTH_CHAR]) : 0;
+        result.push_back((in4Base64Index[FIRST_BYTE] << SHIFT_TWO_BITS) +
+            ((in4Base64Index[SECOND_BYTE] & HIGH_TWO_BITS_MASK) >> SHIFT_FOUR_BITS));
+        if (base64Code[currentPos + OFFSET_THIRD_CHAR] == PADDING_CHARACTER) {
             break;
         }
-        result.push_back(((in4Base64Index[1] & 0x0f) << shiftBits4) + ((in4Base64Index[2] & 0x3c) >> shiftBits2));
-        if (base64Code[currentPos + 3] == '=') {
+        result.push_back(((in4Base64Index[SECOND_BYTE] & LOW_FOUR_BITS_MASK_DECODE) << SHIFT_FOUR_BITS) +
+            ((in4Base64Index[THIRD_BYTE] & HIGH_FOUR_BITS_MASK) >> SHIFT_TWO_BITS));
+        if (base64Code[currentPos + OFFSET_FOURTH_CHAR] == PADDING_CHARACTER) {
             break;
         }
-        result.push_back(((in4Base64Index[2] & 0x03) << shiftBits6) + in4Base64Index[3]);
-        currentPos += inputBase64GroupLen;
+        result.push_back(((in4Base64Index[THIRD_BYTE] & LOW_TWO_BITS_MASK_DECODE) << SHIFT_SIX_BITS) +
+            in4Base64Index[FOURTH_BYTE]);
+        currentPos += INPUT_GROUP_LENGTH_DECODE;
     }
     return result;
 }
@@ -745,7 +779,7 @@ bool CommonUtils::OctToChar(const string &oct, signed char &res)
     ss << std::oct << tmp;
     unsigned int dec;
     ss >> dec;
-    if (dec > MAX_UNSIGNED_CHAR) {
+    if (dec > maxUnsignedChar) {
         return false;
     }
     res = static_cast<char>(dec);
@@ -778,24 +812,26 @@ bool CommonUtils::ReverseEscapeChar(const string &escapeStr, signed char &res)
 bool CommonUtils::ExecShellCmdWithResult(const string &command, vector<string> &results)
 {
     LOG_INFO("execute shell command:", command);
-    char buffer[BUFFER_SIZE];
+    char buffer[bufferSize];
     FILE *pFile = popen(command.c_str(), "r");
     if (!pFile) {
         return false;
     }
-    while (fgets(buffer, BUFFER_SIZE, pFile)) {
+    while (fgets(buffer, bufferSize, pFile) != nullptr) {
         string tmp = buffer;
-        // delete '\n' that automatically added by fgets()
-        tmp = tmp.substr(0, tmp.length() - 1);
+        if (!tmp.empty() && tmp.back() == '\n') {
+            tmp.pop_back();
+        }
         results.push_back(tmp);
     }
-    pclose(pFile);
-    return true;
+    bool readSucceeded = ferror(pFile) == 0;
+    int closeResult = pclose(pFile);
+    return readSucceeded && closeResult == 0;
 }
 
 bool CommonUtils::HexStringToUnsignedLongLong(const string &src, uint64_t &ull)
 {
-    if (!IsValidHexInteger(src, HEX_64_BITS_STRING_LENGTH)) {
+    if (!IsValidHexInteger(src, hex64BitsStringLength)) {
         return false;
     }
     ull = stoull(src, nullptr, BASE_16);
@@ -820,12 +856,17 @@ bool CommonUtils::IsValidHexInteger(const string &src, int maxLength)
     return true;
 }
 
+namespace {
+constexpr int MIN_DRIVE_LETTER_PATH_LENGTH = 3;
+} // namespace
+
 std::string CommonUtils::ConvertDriveLetterToUppercase(std::string filePath)
 {
-    if (isalpha(filePath[0]) && filePath[1] == ':' &&
+    if (filePath.length() >= MIN_DRIVE_LETTER_PATH_LENGTH &&
+        isalpha(static_cast<unsigned char>(filePath[0])) && filePath[1] == ':' &&
         (filePath[2] == '/' || filePath[2] == '\\')) {
         // file path on Windows
-        filePath[0] = toupper(filePath[0]);
+        filePath[0] = static_cast<char>(toupper(static_cast<unsigned char>(filePath[0])));
     }
     return filePath;
 }
@@ -877,12 +918,12 @@ int CommonUtils::GetAddressLength(const std::string &address)
         string tempAddr = TrimString(address, "0x", TrimType::LEFT);
         int length = static_cast<int>(tempAddr.size());
         switch (length) {
-            case HEX_ADDRESS_WIDTH_64_BITS_CPU:
-                return HEX_ADDRESS_WIDTH_64_BITS_CPU;
-            case HEX_ADDRESS_WIDTH_32_BITS_CPU:
-                return HEX_ADDRESS_WIDTH_32_BITS_CPU;
-            case HEX_ADDRESS_WIDTH_16_BITS_CPU:
-                return HEX_ADDRESS_WIDTH_16_BITS_CPU;
+            case hexAddressWidth64BitsCpu:
+                return hexAddressWidth64BitsCpu;
+            case hexAddressWidth32BitsCpu:
+                return hexAddressWidth32BitsCpu;
+            case hexAddressWidth16BitsCpu:
+                return hexAddressWidth16BitsCpu;
             default:
                 return -1;
         }
@@ -893,11 +934,11 @@ int CommonUtils::GetAddressLength(const std::string &address)
 int64_t CommonUtils::GetMaxValidAddrValue(const int &length)
 {
     switch (length) {
-        case HEX_ADDRESS_WIDTH_64_BITS_CPU:
+        case hexAddressWidth64BitsCpu:
             return INT64_MAX;
-        case HEX_ADDRESS_WIDTH_32_BITS_CPU:
+        case hexAddressWidth32BitsCpu:
             return INT32_MAX;
-        case HEX_ADDRESS_WIDTH_16_BITS_CPU:
+        case hexAddressWidth16BitsCpu:
             return INT16_MAX;
         default:
             return -1;

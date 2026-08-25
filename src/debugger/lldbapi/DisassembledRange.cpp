@@ -26,8 +26,8 @@ DisassembledRange::DisassembledRange(lldb::SBTarget &sbTarget, int64_t idx, lldb
     if (symbol.IsValid()) {
         symbolName = "@" + string(symbol.GetName());
     } else {
-        symbolName = "@" + CommonUtils::Dec2HexAddress(startLoadAddr, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU) + ".."
-                     + CommonUtils::Dec2HexAddress(endLoadAddr, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU);
+        symbolName = "@" + CommonUtils::Dec2HexAddress(startLoadAddr, CommonUtils::hexAddressWidth64BitsCpu) + ".."
+                     + CommonUtils::Dec2HexAddress(endLoadAddr, CommonUtils::hexAddressWidth64BitsCpu);
     }
     for (uint32_t i = 0; i < instructionList.GetSize(); i++) {
         SBInstruction instrt = instructionList.GetInstructionAtIndex(i);
@@ -63,7 +63,7 @@ std::string DisassembledRange::GetSourceContent()
         const char *mnemonic = sbInstruction.GetMnemonic(rangeTarget);
         const char *operands = sbInstruction.GetOperands(rangeTarget);
         const char *comment = sbInstruction.GetComment(rangeTarget);
-        text.append(CommonUtils::Dec2HexAddress(loadAddr, CommonUtils::HEX_ADDRESS_WIDTH_64_BITS_CPU));
+        text.append(CommonUtils::Dec2HexAddress(loadAddr, CommonUtils::hexAddressWidth64BitsCpu));
         text.append(": ");
         text.append(CommonUtils::FormatCharPointer(mnemonic, MAX_MNEMONIC_LEN, ' ', true));
         if (operands != nullptr && operands[0] != '\0') {

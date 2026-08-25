@@ -5,6 +5,7 @@
 // See https://cangjie-lang.cn/pages/LICENSE for license information.
 
 #include <uv.h>
+#include <cstdlib>
 #include "ChannelBaseSuite.h"
 #include "ChannelCallbacks.h"
 #include "MockChannel.h"
@@ -43,7 +44,7 @@ TEST_F(ChannelCallbacksSuite, alloc_buffer_cb_ok)
 TEST_F(ChannelCallbacksSuite, alloc_buffer_cb_failed)
 {
     size_t suggestedSize = -1;
-    uv_buf_t buf;
+    uv_buf_t buf{};
     ChannelCallbacks::AllocBufferCb(nullptr, suggestedSize, &buf);
     EXPECT_EQ(buf.len, 0);
     EXPECT_EQ(buf.base, nullptr);
@@ -95,7 +96,8 @@ TEST_F(ChannelCallbacksSuite, listen_cb_socket_accept_failed)
 TEST_F(ChannelCallbacksSuite, connect_cb_socket_status_error)
 {
     EXPECT_CALL(*mockChannel, Close()).WillRepeatedly(Return(true));
-    UvReqConnect *connReq = reinterpret_cast<UvReqConnect *>(malloc(sizeof(UvReqConnect)));
+    UvReqConnect *connReq = static_cast<UvReqConnect *>(std::malloc(sizeof(UvReqConnect)));
+    ASSERT_NE(connReq, nullptr);
     connReq->arg = mockChannel.get();
     int status = -1;
     ChannelCallbacks::ConnectCbSocket(&connReq->req, status);

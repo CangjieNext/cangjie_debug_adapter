@@ -40,7 +40,7 @@ public:
 class HelpChannelSocket : public Dap::ChannelSocket {
 public:
     HelpChannelSocket(const std::string &host, const int &port) : ChannelSocket(host, port) {}
-    HelpChannelSocket(const Dap::UvTcp &server) : ChannelSocket(server) {}
+    explicit HelpChannelSocket(const Dap::UvTcp &server) : ChannelSocket(server) {}
     ~HelpChannelSocket() {}
     bool InitializeAsync() override
     {

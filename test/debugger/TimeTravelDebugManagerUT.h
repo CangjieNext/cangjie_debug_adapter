@@ -16,62 +16,75 @@ using namespace std;
 using namespace Dap;
 using namespace Dap::Protocol;
 
-ThreadsRequest GetThreadsRequest()
+namespace TimeTravelDebugManagerTestData {
+constexpr unsigned int threadsRequestSequence = 7;
+constexpr unsigned int threadsResponseSequence = 57;
+constexpr unsigned int stackTraceRequestSequence = 8;
+constexpr unsigned int scopesRequestSequence = 9;
+constexpr unsigned int variablesRequestSequence = 10;
+constexpr unsigned int evaluateRequestSequence = 11;
+constexpr int64_t firstThreadId = 1;
+constexpr int64_t secondThreadId = 2;
+constexpr int64_t firstFrameOffset = 0;
+constexpr int64_t testFrameId = 1000;
+constexpr int64_t testVariablesReference = 1005;
+}
+
+inline ThreadsRequest GetThreadsRequest()
 {
     ThreadsRequest request;
-    request.seq = 7;
+    request.seq = TimeTravelDebugManagerTestData::threadsRequestSequence;
     return request;
 }
 
-ThreadsResponse GetThreadsResponse()
+inline ThreadsResponse GetThreadsResponse()
 {
     ThreadsResponse response;
-    response.request_seq = 7;
-    response.seq = 57;
-    response.success = "success";
-    Thread thread1;
-    thread1.id = 1;
-    thread1.name = "Thread 1";
-    Thread thread2;
-    thread1.id = 2;
-    thread1.name = "Thread 2";
-    response.threads[0] = thread1;
-    response.threads[1] = thread2;
+    response.request_seq = TimeTravelDebugManagerTestData::threadsRequestSequence;
+    response.seq = TimeTravelDebugManagerTestData::threadsResponseSequence;
+    response.success = true;
+    Thread firstThread{};
+    firstThread.id = TimeTravelDebugManagerTestData::firstThreadId;
+    firstThread.name = "Thread 1";
+    Thread secondThread{};
+    secondThread.id = TimeTravelDebugManagerTestData::secondThreadId;
+    secondThread.name = "Thread 2";
+    response.threads = {firstThread, secondThread};
     return response;
 }
 
-StackTraceRequest GetStackTraceRequest()
+inline StackTraceRequest GetStackTraceRequest()
 {
     StackTraceRequest request;
-    request.seq = 8;
-    request.arguments.threadId = 1;
-    request.arguments.startFrame = 0;
+    request.seq = TimeTravelDebugManagerTestData::stackTraceRequestSequence;
+    request.arguments.threadId = TimeTravelDebugManagerTestData::firstThreadId;
+    request.arguments.startFrame = TimeTravelDebugManagerTestData::firstFrameOffset;
     return request;
 }
 
-ScopesRequest GetScopesRequest()
+inline ScopesRequest GetScopesRequest()
 {
     ScopesRequest request;
-    request.seq = 9;
-    request.arguments.frameId = 1000;
+    request.seq = TimeTravelDebugManagerTestData::scopesRequestSequence;
+    request.arguments.frameId = TimeTravelDebugManagerTestData::testFrameId;
     return request;
 }
 
-VariablesRequest GetVariablesRequest()
+inline VariablesRequest GetVariablesRequest()
 {
     VariablesRequest request;
-    request.seq = 10;
-    request.arguments.variablesReference = 1005;
+    request.seq = TimeTravelDebugManagerTestData::variablesRequestSequence;
+    request.arguments.variablesReference = TimeTravelDebugManagerTestData::testVariablesReference;
     return request;
 }
 
-EvaluateRequest GetEvaluateRequest()
+inline EvaluateRequest GetEvaluateRequest()
 {
     EvaluateRequest request;
-    request.seq = 11;
+    request.seq = TimeTravelDebugManagerTestData::evaluateRequestSequence;
     request.arguments.expression = "user not found";
-    request.arguments.frameId = 1000;
+    request.arguments.frameId = TimeTravelDebugManagerTestData::testFrameId;
     return request;
 }
 
-#endif //DAP_SERVER_TIMETRAVELDEBUGMANAGERUT_H
+#endif // DAP_SERVER_TIMETRAVELDEBUGMANAGERUT_H
