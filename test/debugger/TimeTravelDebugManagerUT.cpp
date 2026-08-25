@@ -12,229 +12,214 @@ using namespace std;
 using namespace Dap;
 using namespace Dap::Protocol;
 
-std::shared_ptr<TimeTravelDebugManager> GetTimeTravelDebugManager()
-{
-    return std::make_shared<TimeTravelDebugManager>(nullptr);
-}
-
 class TimeTravelDebugManagerUT : public testing::Test {
 protected:
-    void SetUp() override {};
-    void TearDown() override {};
+    void SetUp() override
+    {
+        manager = std::make_shared<TimeTravelDebugManager>(nullptr);
+    }
 
-protected:
-    std::shared_ptr<TimeTravelDebugManager> managerTest;
+    static constexpr int64_t mainThreadId = TimeTravelDebugManagerTestData::firstThreadId;
+    static constexpr int64_t secondThreadId = TimeTravelDebugManagerTestData::secondThreadId;
+    static constexpr unsigned int testRequestSequence =
+        TimeTravelDebugManagerTestData::variablesRequestSequence;
+    static constexpr int firstRecordPointId = 1;
+    static constexpr int invalidRecordPointId = -1;
+    static constexpr size_t expectedSupportedRecordPointCount = 1;
 
-    RequestArgumentsContent stackTraceArgCont;
-    RequestArgumentsContent scopesArgCont;
-    RequestArgumentsContent variablesArgCont;
+    std::shared_ptr<TimeTravelDebugManager> manager;
 
-    StackTraceArguments stackTraceArg;
-    ScopesArguments scopesArg;
-    VariablesArguments variablesArg;
+    RequestArgumentsContent stackTraceContent;
+    RequestArgumentsContent scopesContent;
+    RequestArgumentsContent variablesContent;
 
-    std::string threadsCmd = REQ_RES_THREADS;
-    std::string stackTraceCmd = REQ_RES_STACK_TRACE;
-    std::string scopesCmd = REQ_RES_SCOPES;
-    std::string variablesCmd = REQ_RES_VARIABLES;
-    std::shared_ptr<Response> respThreads = std::make_shared<Response>(REQ_RES_THREADS);
-    std::shared_ptr<Response> respScopes = std::make_shared<Response>(REQ_RES_SCOPES);
-    std::shared_ptr<Response> respStackTrace = std::make_shared<Response>(REQ_RES_STACK_TRACE);
-    std::shared_ptr<Response> respVariables = std::make_shared<Response>(REQ_RES_VARIABLES);
+    StackTraceArguments stackTraceArguments;
+    ScopesArguments scopesArguments;
+    VariablesArguments variablesArguments;
+
+    std::string threadsCommand = REQ_RES_THREADS;
+    std::string stackTraceCommand = REQ_RES_STACK_TRACE;
+    std::string scopesCommand = REQ_RES_SCOPES;
+    std::string variablesCommand = REQ_RES_VARIABLES;
+    std::shared_ptr<Response> scopesResponse = std::make_shared<Response>(REQ_RES_SCOPES);
+    std::shared_ptr<Response> stackTraceResponse = std::make_shared<Response>(REQ_RES_STACK_TRACE);
+    std::shared_ptr<Response> variablesResponse = std::make_shared<Response>(REQ_RES_VARIABLES);
 };
 
-TEST_F(TimeTravelDebugManagerUT, is_allowed_messages_in_undo)
+TEST_F(TimeTravelDebugManagerUT, AllowedMessagesInUndoWithUnsupportedCommand)
 {
-    managerTest = GetTimeTravelDebugManager();
-    EXPECT_TRUE(managerTest->IsAllowedMessagesInUndo(REQ_RES_UNDO));
-    EXPECT_TRUE(managerTest->IsAllowedMessagesInUndo(REQ_RES_REVERSE_STEP));
-    EXPECT_TRUE(managerTest->IsAllowedMessagesInUndo(REQ_RES_REVERSE_CONTINUE));
-    EXPECT_TRUE(managerTest->IsAllowedMessagesInUndo(REQ_RES_DISCONNECT));
-    EXPECT_TRUE(managerTest->IsAllowedMessagesInUndo(REQ_RES_CONTINUE_IN_REVERSE));
-    EXPECT_TRUE(managerTest->IsAllowedMessagesInUndo(REQ_RES_STEP_IN_REVERSE));
-    EXPECT_FALSE(managerTest->IsAllowedMessagesInUndo(REQ_RES_STEP_IN));
+    EXPECT_TRUE(manager->IsAllowedMessagesInUndo(REQ_RES_UNDO));
+    EXPECT_TRUE(manager->IsAllowedMessagesInUndo(REQ_RES_REVERSE_STEP));
+    EXPECT_TRUE(manager->IsAllowedMessagesInUndo(REQ_RES_REVERSE_CONTINUE));
+    EXPECT_TRUE(manager->IsAllowedMessagesInUndo(REQ_RES_DISCONNECT));
+    EXPECT_TRUE(manager->IsAllowedMessagesInUndo(REQ_RES_CONTINUE_IN_REVERSE));
+    EXPECT_TRUE(manager->IsAllowedMessagesInUndo(REQ_RES_STEP_IN_REVERSE));
+    EXPECT_FALSE(manager->IsAllowedMessagesInUndo(REQ_RES_STEP_IN));
 }
 
-TEST_F(TimeTravelDebugManagerUT, is_triggered_undo_event)
+TEST_F(TimeTravelDebugManagerUT, TriggeredUndoEventWithUnsupportedCommand)
 {
-    managerTest = GetTimeTravelDebugManager();
-    EXPECT_TRUE(managerTest->IsTriggeredUndoEvent(REQ_RES_REVERSE_STEP));
-    EXPECT_TRUE(managerTest->IsTriggeredUndoEvent(REQ_RES_REVERSE_CONTINUE));
-    EXPECT_TRUE(managerTest->IsTriggeredUndoEvent(REQ_RES_CONTINUE_IN_REVERSE));
-    EXPECT_TRUE(managerTest->IsTriggeredUndoEvent(REQ_RES_STEP_IN_REVERSE));
-    EXPECT_FALSE(managerTest->IsTriggeredUndoEvent(REQ_RES_STEP_IN));
+    EXPECT_TRUE(manager->IsTriggeredUndoEvent(REQ_RES_REVERSE_STEP));
+    EXPECT_TRUE(manager->IsTriggeredUndoEvent(REQ_RES_REVERSE_CONTINUE));
+    EXPECT_TRUE(manager->IsTriggeredUndoEvent(REQ_RES_CONTINUE_IN_REVERSE));
+    EXPECT_TRUE(manager->IsTriggeredUndoEvent(REQ_RES_STEP_IN_REVERSE));
+    EXPECT_FALSE(manager->IsTriggeredUndoEvent(REQ_RES_STEP_IN));
 }
 
-TEST_F(TimeTravelDebugManagerUT, is_not_allowed_in_normal)
+TEST_F(TimeTravelDebugManagerUT, NotAllowedInNormalWithNextCommand)
 {
-    managerTest = GetTimeTravelDebugManager();
-    EXPECT_TRUE(managerTest->IsNotAllowedInNormal(REQ_RES_REVERSE_STEP));
-    EXPECT_TRUE(managerTest->IsNotAllowedInNormal(REQ_RES_REVERSE_CONTINUE));
-    EXPECT_TRUE(managerTest->IsNotAllowedInNormal(REQ_RES_CONTINUE_IN_REVERSE));
-    EXPECT_TRUE(managerTest->IsNotAllowedInNormal(REQ_RES_STEP_IN_REVERSE));
-    EXPECT_FALSE(managerTest->IsNotAllowedInNormal(REQ_RES_NEXT));
+    EXPECT_TRUE(manager->IsNotAllowedInNormal(REQ_RES_REVERSE_STEP));
+    EXPECT_TRUE(manager->IsNotAllowedInNormal(REQ_RES_REVERSE_CONTINUE));
+    EXPECT_TRUE(manager->IsNotAllowedInNormal(REQ_RES_CONTINUE_IN_REVERSE));
+    EXPECT_TRUE(manager->IsNotAllowedInNormal(REQ_RES_STEP_IN_REVERSE));
+    EXPECT_FALSE(manager->IsNotAllowedInNormal(REQ_RES_NEXT));
 }
 
 TEST_F(TimeTravelDebugManagerUT, RecordThread)
 {
-    managerTest = GetTimeTravelDebugManager();
     Dap::Protocol::StoppedEventBody body;
-    body.threadId = 1;
+    body.threadId = mainThreadId;
     body.reason = StoppedReason::BREAKPOINT;
     body.allThreadsStopped = true;
-    managerTest->CreateRecordNode(body);
+    manager->CreateRecordNode(body);
 
     RequestArgumentsContent threadsContent;
     ThreadsResponse threadsResponse;
     threadsResponse.success = true;
     Thread thread;
-    thread.id = 1;
+    thread.id = mainThreadId;
     thread.name = "main";
     threadsResponse.threads.push_back(thread);
-    thread.id = 2;
+    thread.id = secondThreadId;
     thread.name = "bugfix";
     threadsResponse.threads.push_back(thread);
-    std::shared_ptr<ThreadsResponse> ThreadsPtr = std::make_shared<ThreadsResponse>(threadsResponse);
-    managerTest->RecordResponse(threadsContent, threadsCmd, ThreadsPtr);
+    std::shared_ptr<ThreadsResponse> threadsResponsePtr = std::make_shared<ThreadsResponse>(threadsResponse);
+    manager->RecordResponse(threadsContent, threadsCommand, threadsResponsePtr);
 
-    string threadName = managerTest->GetCurrentRecordNode()->threadName;
+    string threadName = manager->GetCurrentRecordNode()->threadName;
     EXPECT_EQ(threadName, "main");
 }
 
-TEST_F(TimeTravelDebugManagerUT,GetDebugInfoResponseInUndo)
+TEST_F(TimeTravelDebugManagerUT, GetDebugInfoResponseInUndo)
 {
-    managerTest = GetTimeTravelDebugManager();
-    unsigned int seq = 10;
+    unsigned int sequence = testRequestSequence;
 
-    stackTraceArgCont.content = stackTraceArg;
-    scopesArgCont.content = scopesArg;
-    variablesArgCont.content = variablesArg;
+    stackTraceContent.content = stackTraceArguments;
+    scopesContent.content = scopesArguments;
+    variablesContent.content = variablesArguments;
 
-    std::string testStr = "1234";
-    managerTest->CreateRecordNode("breakpoint");
-    managerTest->RecordResponse(stackTraceArgCont,stackTraceCmd,respStackTrace);
-    managerTest->RecordResponse(scopesArgCont,scopesCmd,respScopes);
-    managerTest->CreateRecordNode("step");
-    managerTest->RecordResponse(scopesArgCont,scopesCmd,respScopes);
-    managerTest->CreateRecordNode("breakpoint");
-    managerTest->RecordResponse(variablesArgCont,variablesCmd,respVariables);
+    std::string unsupportedCommand = "unsupported command";
+    manager->CreateRecordNode("breakpoint");
+    manager->RecordResponse(stackTraceContent, stackTraceCommand, stackTraceResponse);
+    manager->RecordResponse(scopesContent, scopesCommand, scopesResponse);
+    manager->CreateRecordNode("step");
+    manager->RecordResponse(scopesContent, scopesCommand, scopesResponse);
+    manager->CreateRecordNode("breakpoint");
+    manager->RecordResponse(variablesContent, variablesCommand, variablesResponse);
 
-    managerTest->SelectRecordNode("step");
-    managerTest->SelectRecordNode("reverse step");
-    managerTest->SelectRecordNode("breakpoint");
-    managerTest->SelectRecordNode("reverse breakpoint");
+    manager->SelectRecordNode("step");
+    manager->SelectRecordNode("reverse step");
+    manager->SelectRecordNode("breakpoint");
+    manager->SelectRecordNode("reverse breakpoint");
 
-    EXPECT_TRUE(managerTest->GetDebugInfoResponseInUndo(stackTraceArgCont,testStr,seq).get() == nullptr);
-    EXPECT_TRUE(managerTest->GetDebugInfoResponseInUndo(stackTraceArgCont,stackTraceCmd,seq)->request_seq == seq);
+    EXPECT_EQ(manager->GetDebugInfoResponseInUndo(stackTraceContent, unsupportedCommand, sequence), nullptr);
+    EXPECT_EQ(manager->GetDebugInfoResponseInUndo(stackTraceContent, stackTraceCommand, sequence)->request_seq,
+              sequence);
 
-    managerTest->SelectRecordNode("step");
-    EXPECT_TRUE(managerTest->GetDebugInfoResponseInUndo(scopesArgCont,scopesCmd,seq)->command == scopesCmd);
+    manager->SelectRecordNode("step");
+    EXPECT_EQ(manager->GetDebugInfoResponseInUndo(scopesContent, scopesCommand, sequence)->command, scopesCommand);
 }
 
-TEST_F(TimeTravelDebugManagerUT,GetArgumentsContent)
+TEST_F(TimeTravelDebugManagerUT, GetArgumentsContent)
 {
-    managerTest = GetTimeTravelDebugManager();
+    StackTraceRequest stackTraceRequest;
+    RequestArgumentsContent content = manager->GetArgumentsContent(&stackTraceRequest);
+    StackTraceArguments actualStackTraceArguments = std::get<StackTraceArguments>(content.content);
+    EXPECT_EQ(stackTraceRequest.arguments.threadId, actualStackTraceArguments.threadId);
 
-    StackTraceRequest* stackTraceReq = new StackTraceRequest();
-    RequestArgumentsContent cont = managerTest->GetArgumentsContent(stackTraceReq);
-    StackTraceArguments stackTraceArg = std::get<0>(cont.content);
-    EXPECT_TRUE(stackTraceReq->arguments.threadId == stackTraceArg.threadId);
+    ScopesRequest scopesRequest;
+    content = manager->GetArgumentsContent(&scopesRequest);
+    ScopesArguments actualScopesArguments = std::get<ScopesArguments>(content.content);
+    EXPECT_EQ(scopesRequest.arguments.frameId, actualScopesArguments.frameId);
 
-    ScopesRequest* scopesReq = new ScopesRequest();
-    cont = managerTest->GetArgumentsContent(scopesReq);
-    ScopesArguments scopesArg = std::get<1>(cont.content);
-    EXPECT_TRUE(scopesReq->arguments.frameId == scopesArg.frameId);
-
-    VariablesRequest* variablesReq = new VariablesRequest();
-    cont = managerTest->GetArgumentsContent(variablesReq);
-    VariablesArguments variablesArg = std::get<2>(cont.content);
-    EXPECT_TRUE(variablesReq->arguments.variablesReference == variablesArg.variablesReference);
-
-    delete stackTraceReq;
-    delete scopesReq;
-    delete variablesReq;
+    VariablesRequest variablesRequest;
+    content = manager->GetArgumentsContent(&variablesRequest);
+    VariablesArguments actualVariablesArguments = std::get<VariablesArguments>(content.content);
+    EXPECT_EQ(variablesRequest.arguments.variablesReference, actualVariablesArguments.variablesReference);
 }
 
-TEST_F(TimeTravelDebugManagerUT,StateSwitchProcess)
+TEST_F(TimeTravelDebugManagerUT, StateSwitchProcess)
 {
-    managerTest = GetTimeTravelDebugManager();
-    managerTest->StateSwitchProcess(false);
-    bool flag = managerTest->IsUndoEnable();
-    EXPECT_TRUE(flag == false);
+    manager->StateSwitchProcess(false);
+    bool flag = manager->IsUndoEnable();
+    EXPECT_FALSE(flag);
 
-    managerTest->StateSwitchProcess(true);
-    flag = managerTest->IsUndoEnable();
-    EXPECT_TRUE(flag == true);
+    manager->StateSwitchProcess(true);
+    flag = manager->IsUndoEnable();
+    EXPECT_TRUE(flag);
 }
 
-TEST_F(TimeTravelDebugManagerUT,IsAllowedMessagesInUndo)
+TEST_F(TimeTravelDebugManagerUT, IsAllowedMessagesInUndo)
 {
-    managerTest = GetTimeTravelDebugManager();
-    EXPECT_TRUE(managerTest->IsAllowedMessagesInUndo(REQ_RES_UNDO));
-    EXPECT_TRUE(managerTest->IsAllowedMessagesInUndo(REQ_RES_REVERSE_STEP));
-    EXPECT_TRUE(managerTest->IsAllowedMessagesInUndo(REQ_RES_REVERSE_CONTINUE));
-    EXPECT_TRUE(managerTest->IsAllowedMessagesInUndo(REQ_RES_DISCONNECT));
-    EXPECT_TRUE(managerTest->IsAllowedMessagesInUndo(REQ_RES_DISASSEMBLE));
-    EXPECT_TRUE(managerTest->IsAllowedMessagesInUndo(REQ_RES_CONTINUE_IN_REVERSE));
-    EXPECT_TRUE(managerTest->IsAllowedMessagesInUndo(REQ_RES_STEP_IN_REVERSE));
+    EXPECT_TRUE(manager->IsAllowedMessagesInUndo(REQ_RES_UNDO));
+    EXPECT_TRUE(manager->IsAllowedMessagesInUndo(REQ_RES_REVERSE_STEP));
+    EXPECT_TRUE(manager->IsAllowedMessagesInUndo(REQ_RES_REVERSE_CONTINUE));
+    EXPECT_TRUE(manager->IsAllowedMessagesInUndo(REQ_RES_DISCONNECT));
+    EXPECT_TRUE(manager->IsAllowedMessagesInUndo(REQ_RES_DISASSEMBLE));
+    EXPECT_TRUE(manager->IsAllowedMessagesInUndo(REQ_RES_CONTINUE_IN_REVERSE));
+    EXPECT_TRUE(manager->IsAllowedMessagesInUndo(REQ_RES_STEP_IN_REVERSE));
 }
 
-TEST_F(TimeTravelDebugManagerUT,IsTriggeredUndoEvent)
+TEST_F(TimeTravelDebugManagerUT, IsTriggeredUndoEvent)
 {
-    managerTest = GetTimeTravelDebugManager();
-    EXPECT_TRUE(managerTest->IsTriggeredUndoEvent(REQ_RES_REVERSE_STEP));
-    EXPECT_TRUE(managerTest->IsTriggeredUndoEvent(REQ_RES_REVERSE_CONTINUE));
-    EXPECT_TRUE(managerTest->IsTriggeredUndoEvent(REQ_RES_CONTINUE_IN_REVERSE));
-    EXPECT_TRUE(managerTest->IsTriggeredUndoEvent(REQ_RES_STEP_IN_REVERSE));
-    EXPECT_FALSE(managerTest->IsTriggeredUndoEvent(REQ_RES_UNDO));
+    EXPECT_TRUE(manager->IsTriggeredUndoEvent(REQ_RES_REVERSE_STEP));
+    EXPECT_TRUE(manager->IsTriggeredUndoEvent(REQ_RES_REVERSE_CONTINUE));
+    EXPECT_TRUE(manager->IsTriggeredUndoEvent(REQ_RES_CONTINUE_IN_REVERSE));
+    EXPECT_TRUE(manager->IsTriggeredUndoEvent(REQ_RES_STEP_IN_REVERSE));
+    EXPECT_FALSE(manager->IsTriggeredUndoEvent(REQ_RES_UNDO));
 }
 
-TEST_F(TimeTravelDebugManagerUT,IsNotAllowedInNormal)
+TEST_F(TimeTravelDebugManagerUT, IsNotAllowedInNormal)
 {
-    managerTest = GetTimeTravelDebugManager();
-    EXPECT_TRUE(managerTest->IsNotAllowedInNormal(REQ_RES_REVERSE_STEP));
-    EXPECT_TRUE(managerTest->IsNotAllowedInNormal(REQ_RES_REVERSE_CONTINUE));
-    EXPECT_TRUE(managerTest->IsNotAllowedInNormal(REQ_RES_CONTINUE_IN_REVERSE));
-    EXPECT_TRUE(managerTest->IsNotAllowedInNormal(REQ_RES_STEP_IN_REVERSE));
-    EXPECT_FALSE(managerTest->IsNotAllowedInNormal(REQ_RES_UNDO));
+    EXPECT_TRUE(manager->IsNotAllowedInNormal(REQ_RES_REVERSE_STEP));
+    EXPECT_TRUE(manager->IsNotAllowedInNormal(REQ_RES_REVERSE_CONTINUE));
+    EXPECT_TRUE(manager->IsNotAllowedInNormal(REQ_RES_CONTINUE_IN_REVERSE));
+    EXPECT_TRUE(manager->IsNotAllowedInNormal(REQ_RES_STEP_IN_REVERSE));
+    EXPECT_FALSE(manager->IsNotAllowedInNormal(REQ_RES_UNDO));
 }
 
 TEST_F(TimeTravelDebugManagerUT, IsAvailableOnCurrentContainer)
 {
-    managerTest = GetTimeTravelDebugManager();
-    EXPECT_TRUE(managerTest->IsAvailableOnCurrentContainer());
+    EXPECT_TRUE(manager->IsAvailableOnCurrentContainer());
 }
 
 TEST_F(TimeTravelDebugManagerUT, GotoRecordPoint)
 {
-    managerTest = GetTimeTravelDebugManager();
-    bool success = managerTest->GotoRecordPoint(1);
+    bool success = manager->GotoRecordPoint(firstRecordPointId);
     EXPECT_FALSE(success);
-    managerTest->CreateRecordNode("breakpoint");
+    manager->CreateRecordNode("breakpoint");
 
-    stackTraceArgCont.content = stackTraceArg;
-    scopesArgCont.content = scopesArg;
-    variablesArgCont.content = variablesArg;
-    managerTest->RecordResponse(stackTraceArgCont,stackTraceCmd,respStackTrace);
+    stackTraceContent.content = stackTraceArguments;
+    scopesContent.content = scopesArguments;
+    variablesContent.content = variablesArguments;
+    manager->RecordResponse(stackTraceContent, stackTraceCommand, stackTraceResponse);
 
-    success = managerTest->GotoRecordPoint(-1);
+    success = manager->GotoRecordPoint(invalidRecordPointId);
     EXPECT_FALSE(success);
-    success = managerTest->GotoRecordPoint(1);
+    success = manager->GotoRecordPoint(firstRecordPointId);
     EXPECT_TRUE(success);
 }
 
 TEST_F(TimeTravelDebugManagerUT, GetSupportedRecordPointTypes)
 {
-    managerTest = GetTimeTravelDebugManager();
-    auto array = managerTest->GetSupportedRecordPointTypes();
-    EXPECT_TRUE(array.size() > 0);
+    auto recordPointTypes = manager->GetSupportedRecordPointTypes();
+    EXPECT_FALSE(recordPointTypes.empty());
 }
 
 TEST_F(TimeTravelDebugManagerUT, GetSupportedRecordPoints)
 {
-    managerTest = GetTimeTravelDebugManager();
-    managerTest->CreateRecordNode("breakpoint");
-    managerTest->CreateRecordNode("my type");
-    auto it = managerTest->GetSupportedRecordPoints();
-    EXPECT_EQ(it.size(), 1);
+    manager->CreateRecordNode("breakpoint");
+    manager->CreateRecordNode("my type");
+    auto recordPoints = manager->GetSupportedRecordPoints();
+    EXPECT_EQ(recordPoints.size(), expectedSupportedRecordPointCount);
 }

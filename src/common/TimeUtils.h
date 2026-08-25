@@ -69,7 +69,9 @@ public:
         constexpr std::int16_t msDuration = 1000;
         struct tm nowTm{};
 #ifdef _WIN32
-        localtime_s(&nowTm, &tt);
+        if (localtime_s(&nowTm, &tt) != 0) {
+            return nullptr;
+        }
 #else
         if (localtime_r(&tt, &nowTm) == nullptr) {
             return nullptr;
@@ -98,7 +100,10 @@ public:
             return "";
         }
         std::unique_ptr<Time> nowPtr = Now();
-        return funcMap[style](*nowPtr.get());
+        if (nowPtr == nullptr) {
+            return "";
+        }
+        return funcMap[style](*nowPtr);
     }
 
 private:

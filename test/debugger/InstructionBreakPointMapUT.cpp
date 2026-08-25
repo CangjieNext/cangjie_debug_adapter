@@ -10,6 +10,11 @@
 using namespace std;
 using namespace Dap;
 
+namespace {
+constexpr int FIRST_BREAKPOINT_ID = 1;
+constexpr int SECOND_BREAKPOINT_ID = 2;
+}
+
 class InstructionBreakPointMapUtilsTest : public testing::Test {
 protected:
     void SetUp() {}
@@ -19,10 +24,10 @@ protected:
 TEST_F(InstructionBreakPointMapUtilsTest, Functest)
 {
     InstructionBreakPointMap instructionBreakPointMap;
-    instructionBreakPointMap.AddBreakPoint(1, "abc");
-    instructionBreakPointMap.AddBreakPoint(2, "def");
+    instructionBreakPointMap.AddBreakPoint(FIRST_BREAKPOINT_ID, "abc");
+    instructionBreakPointMap.AddBreakPoint(SECOND_BREAKPOINT_ID, "def");
 
-    int breakpointId = 1;
+    int breakpointId = FIRST_BREAKPOINT_ID;
     string result = instructionBreakPointMap.GetInstructionReference(breakpointId);
     EXPECT_EQ(result, "abc");
 

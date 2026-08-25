@@ -21,18 +21,13 @@
 NS_DAP_BEGIN
 NS_PROTOCOL_BEGIN
 
-/* *
- * Insert request-command-func
- * CONTAINER  : type of map<string, std::function<std::shared_ptr<Request>(const json_t&)>>
- *              or std::map<std::string, std::function<std::optional<json_t>(const Request &)>>
- * REQ        : request command
- * Func       : std::function<std::shared_ptr<Request>(const json_t&)> object
-                or std::function<std::optional<json_t>(const Request &)> object
- */
-#define INSERT_REQUEST(CONTAINER, REQ, FUNC) \
-    if ((CONTAINER).count(REQ) == 0) {         \
-        (CONTAINER).emplace(REQ, FUNC);        \
+template <typename Container, typename Key, typename Function>
+void InsertRequest(Container &container, const Key &request, Function &&function)
+{
+    if (container.count(request) == 0) {
+        container.emplace(request, std::forward<Function>(function));
     }
+}
 
 class RequestManager {
 public:

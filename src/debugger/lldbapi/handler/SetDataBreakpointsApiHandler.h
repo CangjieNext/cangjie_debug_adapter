@@ -27,6 +27,8 @@ private:
     std::vector<Dap::Protocol::Breakpoint> breakpointResult;
     void GenerateFailureBreakpointResult(Dap::Protocol::Breakpoint& currentBreak, std::string message);
     void AddBreakpoints(const std::vector<Dap::Protocol::DataBreakpoint> &breakpoints);
+    bool IsConditionUnsupported(const std::string &condition);
+    bool ParseDataId(const std::string &dataId, lldb::addr_t &address, size_t &size);
     void RemoveBreakpoints() const;
 };
 };

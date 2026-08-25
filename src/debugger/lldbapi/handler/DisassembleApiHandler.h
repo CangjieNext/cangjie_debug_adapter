@@ -21,7 +21,10 @@ public:
 
 private:
     void ReadInstructions();
+    void ReadForwardInstructions();
     void ReadInstructionsBackwards();
+    bool IsInstructionValid(const lldb::SBInstruction &sbInstruction, lldb::addr_t currentAddress,
+                            lldb::addr_t nextInstructionAddress) const;
     bool GenStartAddrBackwards(lldb::SBAddress &startAddr);
     Dap::Protocol::DisassembledInstruction GenDapInstruction(lldb::SBInstruction &sbInstruction);
     void AddDapInstrSourceInfo(lldb::SBInstruction &sbInstruction,
@@ -33,6 +36,7 @@ private:
     lldb::addr_t startAddress = 0;
     int64_t instructionOffset = 0;
     int64_t forwardCount = 0;
+    uint64_t instructionCount = 0;
     int64_t proLine = 0; // cache line number of last instruction code to adapt line number follow
 };
 };
