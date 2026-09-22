@@ -93,7 +93,7 @@ def setup_build_tools():
 
     found_dirs = set()
     for tool in ['cmake', 'ninja', 'mingw32-make', 'clang', 'clang++']:
-        exe_names = [tool, tool + '.exe'] if IS_WINDOWS else [tool]
+        exe_names = [tool, '{}.exe'.format(tool)] if IS_WINDOWS else [tool]
         if any(shutil.which(n) for n in exe_names):
             continue
         for d in search_dirs:
