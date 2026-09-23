@@ -31,6 +31,8 @@ lldb::SBValue ContainerManager::FindVarSBValue(const std::string &varName, int64
 #ifdef __APPLE__
             lldb::SBTypeCategory typeCategory = sbDebugger.GetCategory(lldb::eLanguageTypeC_plus_plus_14);
             typeCategory.SetEnabled(false);
+#else
+            (void)sbDebugger;
 #endif
             value = valueList.GetFirstValueByName(varName.c_str());
             break;
