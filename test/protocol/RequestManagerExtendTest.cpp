@@ -28,21 +28,6 @@ protected:
     int arraySize = 10;
 };
 
-static json_t FunctionBreakpointsDataJson()
-{
-    json_t data = json_t::object();
-    data["supportsConditionalBreakpoints"]  = true;
-    data["supportsHitConditionalBreakpoints"]  = true;
-    data["supportsLogPoints"]  = true;
-    data["supportsFunctionBreakpoints"]  = true;
-    data["supportsDataBreakpoints"]  = true;
-    data["id"]  = 2;
-    data["verified"]  = true;
-    data["line"]  = 13;
-    data["sessionId"]  = "27da6f02-89ce-4f9c-a108-b66b0d90c8f5";
-    return data;
-}
-
 TEST_F(RequestManagerExtendTest, DebugInConsoleRequestTest)
 {
     json_t argumentsJson = json_t::object();

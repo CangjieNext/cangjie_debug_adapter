@@ -12,6 +12,7 @@ using namespace Dap;
 
 std::shared_ptr<Debugger> DebuggerHelper::CreateDebugger(const Option& option)
 {
+    (void)option;
     Dap::LLDBApiDebuggerOption debuggerOption;
     debuggerOption.filterInvalidLocals = true;
     std::shared_ptr<Dap::LLDBApiDebugger> debugger = std::make_shared<Dap::LLDBApiDebugger>(debuggerOption);
