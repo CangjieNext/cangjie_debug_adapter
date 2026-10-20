@@ -1,0 +1,27 @@
+src/debugger/lldbapi/handler/AttachApiHandler.h
+  s_4e7c0b6d87b150::t_cf493585cde083 24-29
+src/debugger/lldbapi/handler/AttachApiHandler.cpp
+  s_4e7c0b6d87b150::t_26944202ed8ea5 109
+  s_4e7c0b6d87b150::t_3b4ffdf7fb849c 82-89,96,98-108,110-115,140-184,196,206-210,226-231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "8abb01082c8f47c64cbda3af398875bbd80ccf64",
+  "prompts": {},
+  "humans": {
+    "h_70f5ff6b50bd67": {
+      "author": "ennka <yuanke6@h-partners.com>"
+    }
+  },
+  "sessions": {
+    "s_4e7c0b6d87b150": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_ea7df9158ffe6uzncm6jzSvdbw",
+        "model": "unknown"
+      },
+      "human_author": null
+    }
+  }
+}
