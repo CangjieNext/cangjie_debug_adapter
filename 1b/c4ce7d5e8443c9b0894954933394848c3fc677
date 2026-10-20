@@ -1,0 +1,16 @@
+src/common/CommonUtils.cpp
+  h_70f5ff6b50bd67 508-510,512
+src/channel/UvLoopMgr.cpp
+  h_70f5ff6b50bd67 8
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "1bc4ce7d5e8443c9b0894954933394848c3fc677",
+  "prompts": {},
+  "humans": {
+    "h_70f5ff6b50bd67": {
+      "author": "ennka <yuanke6@h-partners.com>"
+    }
+  }
+}
