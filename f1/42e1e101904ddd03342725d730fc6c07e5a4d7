@@ -1,0 +1,51 @@
+build/build.py
+  s_e1bcf270c1e359::t_f1cbc07cca54dd 28-31,39,61-140,146-147,153-240,244-245,248-252,258-262,269-270,275,282,287,290,293,335-336,341-343,401,410-412,431-432,434-438,451-454,467-473,489
+  s_e1bcf270c1e359::t_2967239b510063 455
+src/debugger/lldbapi/handler/VariablesApiHandler.cpp
+  h_70f5ff6b50bd67 250-252
+README.md
+  h_70f5ff6b50bd67 1,3,5-29,32-34,36-44,46-74,77-130,134,139-141
+src/debugger/lldbapi/handler/SetVariableApiHandler.cpp
+  h_70f5ff6b50bd67 28-49,61,80,97-112
+build/prepare.py
+  h_70f5ff6b50bd67 1-544
+src/debugger/lldbapi/handler/ScopesApiHandler.cpp
+  h_70f5ff6b50bd67 30-42
+src/debugger/lldbapi/handler/SetVariableApiHandler.h
+  h_70f5ff6b50bd67 26
+README_zh.md
+  h_70f5ff6b50bd67 1,3,5-27,30-32,34-42,44-69,71-80,82-83,85-87,91-142
+CMakeLists.txt
+  h_70f5ff6b50bd67 21-22,52,54-58,76-82,114
+build/README.md
+  s_e1bcf270c1e359::t_5eef841a58e6b5 1,3-4,6,9-28,31,33,35-42,44-47,49-54,56,58-59,61-66,68,70-76,78-79,81,83-88,90,92,94-97,99,101-102,104-107,109-118,121,123-125,128-130,132-146,148-151,153,155-160,163,166,169,172,175,178,180-184,187,190,196,198,201,203-206,208,211,217-227,229-231,235-243
+src/debugger/lldbapi/LLDBApiEventHandler.h
+  h_70f5ff6b50bd67 11,13,23,88-89
+src/debugger/lldbapi/LLDBApiDebugger.cpp
+  h_70f5ff6b50bd67 324-326,438-439
+src/CMakeLists.txt
+  h_70f5ff6b50bd67 39-43,107-110,152
+src/debugger/lldbapi/LLDBApiEventHandler.cpp
+  h_70f5ff6b50bd67 39,43-47,107-109,249,989
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.20",
+  "base_commit_sha": "f142e1e101904ddd03342725d730fc6c07e5a4d7",
+  "prompts": {},
+  "humans": {
+    "h_70f5ff6b50bd67": {
+      "author": "ennka <yuanke6@h-partners.com>"
+    }
+  },
+  "sessions": {
+    "s_e1bcf270c1e359": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_04f46c98effewjPv53lPL6YlS0",
+        "model": "unknown"
+      },
+      "human_author": null
+    }
+  }
+}
