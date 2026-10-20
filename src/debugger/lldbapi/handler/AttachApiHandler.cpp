@@ -79,22 +79,40 @@ UniqueResponsePtr AttachApiHandler::AttachToRemoteProcess() const
     for (const auto &command : attachParams.startupCommands) {
         debugger->ExecCommand(command);
     }
-    // select remote platform
+    if (attachParams.connectToDebugServerDirectly) {
+        return AttachViaRemoteDebugServer();
+    }
+    return AttachViaRemotePlatform();
+}
+
+bool AttachApiHandler::SelectRemotePlatform(std::string &error) const
+{
     if (attachParams.isContainer) {
         bool res = false;
         bool success = debugger->ExecCommand("platform select " + attachParams.remotePlatform + " inner", error, res);
         SBPlatform platform = debugger->GetSbDebugger().GetSelectedPlatform();
         if (!(success && res && platform.IsValid())) {
             error = "Failed to select platform: " + attachParams.remotePlatform;
-            return debugger->CompleteFailureResponse(std::make_unique<AttachResponse>(), error, currentRequest->seq);
+            return false;
         }
-    } else {
-        SBPlatform platform(attachParams.remotePlatform.c_str());
-        if (!platform.IsValid()) {
-            error = "Invalid remote platform: " + attachParams.remotePlatform;
-            return debugger->CompleteFailureResponse(std::make_unique<AttachResponse>(), error, currentRequest->seq);
-        }
-        debugger->GetSbDebugger().SetSelectedPlatform(platform);
+        return true;
+    }
+    SBPlatform platform(attachParams.remotePlatform.c_str());
+    if (!platform.IsValid()) {
+        error = "Invalid remote platform: " + attachParams.remotePlatform;
+        return false;
+    }
+    debugger->GetSbDebugger().SetSelectedPlatform(platform);
+    return true;
+}
+
+// remoteAddress points to an lldb-server running in platform mode (e.g. OHOS / Linux):
+// "platform connect" first, then let the platform spawn a gdb server (qLaunchGDBServer) when attaching.
+UniqueResponsePtr AttachApiHandler::AttachViaRemotePlatform() const
+{
+    std::string error;
+    if (!SelectRemotePlatform(error)) {
+        return debugger->CompleteFailureResponse(std::make_unique<AttachResponse>(), error, currentRequest->seq);
     }
     // connect to remote debugger server
     SBPlatformConnectOptions connectOptions(attachParams.remoteAddress.c_str());
@@ -119,7 +137,51 @@ UniqueResponsePtr AttachApiHandler::AttachToRemoteProcess() const
     for (const auto &command : attachParams.afterConnectCommands) {
         debugger->ExecCommand(command);
     }
-    if (!AttachProcess(error)) {
+    SBTarget sbTarget;
+    if (!CreateAttachTarget(sbTarget, error)) {
+        return debugger->CompleteFailureResponse(std::make_unique<AttachResponse>(), error, currentRequest->seq);
+    }
+    return FinishRemoteAttach(sbTarget);
+}
+
+// remoteAddress points to a process-level gdb-remote stub (Apple debugserver exposed by iOS devices):
+// it does NOT implement the platform packets (qLaunchGDBServer, ...), so "platform connect" would appear to
+// succeed but the subsequent attach would try to connect to port 0 and fail with "Failed to connect port".
+// Instead the target is connected to the stub directly ("process connect") and then attached, which makes
+// lldb send vAttach on the already established connection.
+UniqueResponsePtr AttachApiHandler::AttachViaRemoteDebugServer() const
+{
+    std::string error;
+    if (!SelectRemotePlatform(error)) {
+        return debugger->CompleteFailureResponse(std::make_unique<AttachResponse>(), error, currentRequest->seq);
+    }
+    SBTarget sbTarget;
+    if (!CreateAttachTarget(sbTarget, error)) {
+        return debugger->CompleteFailureResponse(std::make_unique<AttachResponse>(), error, currentRequest->seq);
+    }
+    // Note: lldb already retries the tcp connection internally (ProcessGDBRemote::ConnectToDebugserver),
+    // so a single attempt is enough here.
+    string anonymizedRemoteAddress = CommonUtils::AnonymizeRemoteAddress(attachParams.remoteAddress);
+    SBListener listener = debugger->GetSBListener();
+    SBError sbError;
+    sbTarget.ConnectRemote(listener, attachParams.remoteAddress.c_str(), "gdb-remote", sbError);
+    if (!sbError.Success()) {
+        error = "Failed connect to debugserver " + anonymizedRemoteAddress + ": " +
+            (sbError.GetCString() != nullptr ? sbError.GetCString() : "unknown error");
+        return debugger->CompleteFailureResponse(std::make_unique<AttachResponse>(), error, currentRequest->seq);
+    }
+    LOG_INFO("Connected to remote debugserver successfully!");
+
+    for (const auto &command : attachParams.afterConnectCommands) {
+        debugger->ExecCommand(command);
+    }
+    return FinishRemoteAttach(sbTarget);
+}
+
+UniqueResponsePtr AttachApiHandler::FinishRemoteAttach(SBTarget &sbTarget) const
+{
+    std::string error;
+    if (!AttachToTarget(sbTarget, error)) {
         return debugger->CompleteFailureResponse(std::make_unique<AttachResponse>(), error, currentRequest->seq);
     }
     for (const auto &command : attachParams.postAttachCommands) {
@@ -131,9 +193,8 @@ UniqueResponsePtr AttachApiHandler::AttachToRemoteProcess() const
     return debugger->CompleteSuccessResponse(std::make_unique<AttachResponse>(), currentRequest->seq);
 }
 
-bool AttachApiHandler::AttachProcess(std::string &result) const
+bool AttachApiHandler::CreateAttachTarget(SBTarget &sbTarget, std::string &result) const
 {
-    SBTarget sbTarget;
     // Ignore the program name, create a target directly
     sbTarget = debugger->GetSbDebugger().CreateTarget(nullptr);
     if (!sbTarget.IsValid()) {
@@ -142,6 +203,11 @@ bool AttachApiHandler::AttachProcess(std::string &result) const
     }
     debugger->SetSbTarget(sbTarget);
     debugger->SetDisassemblyManager(DisassemblyManager(sbTarget));
+    return true;
+}
+
+bool AttachApiHandler::AttachToTarget(SBTarget &sbTarget, std::string &result) const
+{
     auto listener = debugger->GetSBListener();
     SBError sbError = SBError();
     if (attachParams.targetPid != -1) {
@@ -156,4 +222,10 @@ bool AttachApiHandler::AttachProcess(std::string &result) const
     }
     LOG_INFO("Attached to process successfully!");
     return true;
+}
+
+bool AttachApiHandler::AttachProcess(std::string &result) const
+{
+    SBTarget sbTarget;
+    return CreateAttachTarget(sbTarget, result) && AttachToTarget(sbTarget, result);
 }

@@ -29,6 +29,11 @@ struct AttachParams {
     RemoteClass remote = RemoteClass::NO_REMOTE;
     std::string remotePlatform;
     std::string remoteAddress;
+    // true: remoteAddress is a process-level gdb-remote endpoint (e.g. Apple debugserver), the target must be
+    //       connected to it directly ("process connect") and then attached.
+    // false: remoteAddress is an lldb-server platform endpoint ("platform connect"), the platform will spawn a
+    //        gdb server for us on attach.
+    bool connectToDebugServerDirectly = false;
     std::string port;
     std::string remoteUser;
     std::string remoteUserPassword;
@@ -42,6 +47,9 @@ struct AttachParams {
 class AttachHelper {
 public:
     void ParseParameters(const Dap::Protocol::AttachRequest& request);
+    // Apple device platforms (iOS/tvOS/watchOS/...) only expose a process-level debugserver, there is no
+    // lldb-server platform mode on these devices.
+    static bool IsAppleDeviceRemotePlatform(const std::string &remotePlatform);
 
     AttachParams attachParams;
 
