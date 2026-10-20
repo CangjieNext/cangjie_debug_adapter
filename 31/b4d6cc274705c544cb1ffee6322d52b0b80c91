@@ -1,0 +1,18 @@
+build/build.py
+  h_70f5ff6b50bd67 16,20-23,33-41,45,143,145,147-148,154-302,379-393,395-399,427-428,430,636-667
+build/README.md
+  h_70f5ff6b50bd67 18,32,65,70-73,124,148-168
+build/prepare.py
+  h_70f5ff6b50bd67 87,94-139,528,575-581
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.22",
+  "base_commit_sha": "31b4d6cc274705c544cb1ffee6322d52b0b80c91",
+  "prompts": {},
+  "humans": {
+    "h_70f5ff6b50bd67": {
+      "author": "ennka <yuanke6@h-partners.com>"
+    }
+  }
+}
