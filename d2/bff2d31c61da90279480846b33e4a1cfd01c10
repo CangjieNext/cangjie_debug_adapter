@@ -1,0 +1,16 @@
+src/debugger/DebuggerHelper.cpp
+  h_70f5ff6b50bd67 15
+src/debugger/lldbapi/ContainerManager.cpp
+  h_70f5ff6b50bd67 34-35
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "d2bff2d31c61da90279480846b33e4a1cfd01c10",
+  "prompts": {},
+  "humans": {
+    "h_70f5ff6b50bd67": {
+      "author": "ennka <yuanke6@h-partners.com>"
+    }
+  }
+}
