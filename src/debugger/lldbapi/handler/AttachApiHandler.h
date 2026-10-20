@@ -21,10 +21,17 @@ public:
 private:
     UniqueResponsePtr AttachToLocalProcess() const;
     UniqueResponsePtr AttachToRemoteProcess() const;
+    UniqueResponsePtr AttachViaRemotePlatform() const;
+    UniqueResponsePtr AttachViaRemoteDebugServer() const;
+    UniqueResponsePtr FinishRemoteAttach(lldb::SBTarget &sbTarget) const;
+    bool SelectRemotePlatform(std::string &error) const;
+    bool CreateAttachTarget(lldb::SBTarget &sbTarget, std::string &result) const;
+    bool AttachToTarget(lldb::SBTarget &sbTarget, std::string &result) const;
     bool AttachProcess(std::string &result) const;
 
     constexpr static int CONNECT_REMOTE_TRY_COUNT = 50;
     constexpr static int CONNECT_REMOTE_WAIT_MS = 100;
+    constexpr static const char *GDB_REMOTE_PROCESS_PLUGIN = "gdb-remote";
 };
 };
 

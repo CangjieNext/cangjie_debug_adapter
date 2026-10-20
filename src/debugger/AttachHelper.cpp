@@ -46,6 +46,7 @@ void AttachHelper::ParseDebugerServerRemoteParam(const AttachRequest &request)
     if (request.arguments.remotePlatform.has_value()) {
         attachParams.remotePlatform = request.arguments.remotePlatform.value();
     }
+    attachParams.connectToDebugServerDirectly = IsAppleDeviceRemotePlatform(attachParams.remotePlatform);
     if (request.arguments.remoteAddress.has_value()) {
         attachParams.remoteAddress = request.arguments.remoteAddress.value();
     }
@@ -66,6 +67,20 @@ void AttachHelper::ParseDebugerServerRemoteParam(const AttachRequest &request)
     }
 }
 
+bool AttachHelper::IsAppleDeviceRemotePlatform(const std::string &remotePlatform)
+{
+    // Platform names registered by lldb's PlatformRemoteDarwinDevice subclasses.
+    static const std::vector<std::string> APPLE_DEVICE_PLATFORMS = {
+        "remote-ios", "remote-tvos", "remote-watchos", "remote-bridgeos", "remote-xros"
+    };
+    for (const auto &platform : APPLE_DEVICE_PLATFORMS) {
+        if (remotePlatform == platform) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void AttachParams::Clear()
 {
     targetPid = -1;
@@ -74,6 +89,8 @@ void AttachParams::Clear()
     attachStep = Dap::Protocol::AttachStep::ALL_STEPS;
     remotePlatform.clear();
     remoteAddress.clear();
+    connectToDebugServerDirectly = false;
+    isContainer = false;
     setupCommands.clear();
     scriptCommands.clear();
     startupCommands.clear();
@@ -98,6 +115,8 @@ std::string AttachParams::ToString() const
         res += "\n remote: DEBUGGER_SERVER_REMOTE";
         res += "\n remotePlatform: " + remotePlatform;
         res += "\n remoteAddress: " + anonymizedRemoteAddress;
+        res += connectToDebugServerDirectly ? "\n connectMode: process (debugserver)"
+                                            : "\n connectMode: platform (lldb-server)";
         if (isContainer) {
             res += "\n isContainer: true";
         }
