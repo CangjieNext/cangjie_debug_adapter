@@ -1,0 +1,21 @@
+build/prepare.py
+  s_00a805906f99d3::t_d75c6de88a8ed2 220
+build/build.py
+  s_00a805906f99d3::t_7a0384ed57db5f 96
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.4",
+  "base_commit_sha": "8cbc4c311d8eda76477de2ab75b5a9e7837c8e7a",
+  "prompts": {},
+  "sessions": {
+    "s_00a805906f99d3": {
+      "agent_id": {
+        "tool": "opencode",
+        "id": "ses_f392d7edaffesuqxG0hXUaWZWu",
+        "model": "unknown"
+      },
+      "human_author": "ennka <yuanke6@h-partners.com>"
+    }
+  }
+}
